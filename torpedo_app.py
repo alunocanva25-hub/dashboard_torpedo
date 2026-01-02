@@ -208,7 +208,7 @@ def fmt_int(n: int) -> str:
     return f"{int(n):,}".replace(",", ".")
 
 # ======================================================
-# LOGIN (centralizado + moderno)
+# LOGIN (centralizado + moderno, inputs dentro do card)
 # ======================================================
 def tela_login():
     st.markdown("""
@@ -222,14 +222,64 @@ def tela_login():
           <div class="login-chip">✅ Segurança via <b>st.secrets</b></div>
     """, unsafe_allow_html=True)
 
+    # CSS extra para “embelezar” inputs e botão dentro do card
+    st.markdown("""
+    <style>
+    /* inputs dentro do login */
+    .login-body [data-testid="stTextInput"] label{
+      font-weight: 900 !important;
+      color: rgba(11,43,69,0.95) !important;
+      font-size: 12px !important;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .login-body [data-testid="stTextInput"] input{
+      border-radius: 14px !important;
+      border: 2px solid rgba(10,40,70,0.18) !important;
+      background: rgba(255,255,255,0.65) !important;
+      padding: 12px 12px !important;
+      font-weight: 900 !important;
+      color: #0b2b45 !important;
+    }
+    .login-body [data-testid="stTextInput"] input:focus{
+      border-color: rgba(31,119,180,0.75) !important;
+      box-shadow: 0 0 0 4px rgba(31,119,180,0.15) !important;
+    }
+
+    /* botão entrar em destaque */
+    .login-body div.stButton > button{
+      width: 100%;
+      border-radius: 14px !important;
+      border: 2px solid rgba(10,40,70,0.18) !important;
+      background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92)) !important;
+      color: #fff !important;
+      font-weight: 950 !important;
+      padding: .6rem .8rem !important;
+    }
+    .login-body div.stButton > button:hover{
+      filter: brightness(1.05);
+      border-color: rgba(255,255,255,0.25) !important;
+    }
+
+    /* botão limpar secundário */
+    .login-body .btn-secondary div.stButton > button{
+      background: rgba(255,255,255,0.55) !important;
+      color:#0b2b45 !important;
+      font-weight: 950 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário")
     senha = st.text_input("Senha", type="password", key="login_senha", placeholder="Digite sua senha")
 
-    c1, c2 = st.columns(2)
+    c1, c2 = st.columns(2, gap="small")
     with c1:
-        entrar = st.button("Entrar", use_container_width=True)
+        entrar = st.button("Entrar")
     with c2:
-        limpar = st.button("Limpar", use_container_width=True)
+        st.markdown('<div class="btn-secondary">', unsafe_allow_html=True)
+        limpar = st.button("Limpar")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if limpar:
         st.session_state["login_usuario"] = ""
@@ -254,6 +304,7 @@ def tela_login():
       </div>
     </div>
     """, unsafe_allow_html=True)
+
 
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
