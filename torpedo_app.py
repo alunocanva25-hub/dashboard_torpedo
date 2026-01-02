@@ -374,7 +374,7 @@ def tela_login():
       /* ===== WRAPPER GERAL ===== */
       .login-wrap{
         /* 🔧 Ajuste AQUI a distância do topo */
-        padding-top: 100px;          /* ↓ diminua para subir / ↑ aumente para descer */
+        padding-top: 60px;          /* ↓ diminua para subir / ↑ aumente para descer */
         display:flex;
         justify-content:center;
       }
@@ -742,11 +742,26 @@ total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].
 
 
 # ======================================================
-# LINHA PRINCIPAL: BARRAS (PROC/IMPROC) + DONUT + RESUMO (MESMA LINHA)
+# ✅ ALTERAÇÃO 1: preparar defaults dos controles do gráfico
+# (para o gráfico ler do session_state mesmo se o widget estiver na coluna da direita)
 # ======================================================
-row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
+colabs_disp_all = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist())
 
-# ---- 1) BARRAS DIÁRIO (Procedente/Improcedente)
+if "colabs_graf" not in st.session_state:
+    # 🔧 default: até 6 colaboradores (ajuste se quiser)
+    st.session_state["colabs_graf"] = colabs_disp_all[:6] if len(colabs_disp_all) > 6 else colabs_disp_all
+
+if "modo_barra" not in st.session_state:
+    st.session_state["modo_barra"] = "Lado a lado"
+
+
+# ======================================================
+# LINHA PRINCIPAL: BARRAS (por colaborador) + DONUT + RESUMO (MESMA LINHA)
+# ✅ ALTERAÇÃO 2: proporções ajustadas + mais alinhado
+# ======================================================
+row_main = st.columns([2.3, 1.35, 1.15], gap="large")
+
+# ---- 1) BARRAS DIÁRIO (por colaborador) — AGORA SEM CONTROLES AQUI
 with row_main[0]:
     st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — POR COLABORADOR (SEG–SEX)</div>', unsafe_allow_html=True)
 
@@ -754,19 +769,9 @@ with row_main[0]:
         st.info("Sem dados no período selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        # opcional: escolher quais colaboradores aparecem no gráfico
-        colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist())
-
-        cfa, cfb = st.columns([1.7, 1.0], gap="small")
-        with cfa:
-            colabs_sel = st.multiselect(
-                "Colaboradores (para o gráfico)",
-                options=colabs_disp,
-                default=colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp,
-                key="colabs_graf"
-            )
-        with cfb:
-            modo_barra = st.selectbox("Visual", ["Lado a lado", "Empilhado"], index=0, key="modo_barra")
+        # ✅ pega seleções do lado direito
+        colabs_sel = st.session_state.get("colabs_graf", colabs_disp_all)
+        modo_barra = st.session_state.get("modo_barra", "Lado a lado")
 
         base = df_semana.copy()
         if colabs_sel:
@@ -784,7 +789,7 @@ with row_main[0]:
         if colabs_sel:
             col_df = pd.DataFrame({"_COLAB_": [str(x).upper().strip() for x in colabs_sel]})
         else:
-            col_df = pd.DataFrame({"_COLAB_": colabs_disp})
+            col_df = pd.DataFrame({"_COLAB_": colabs_disp_all})
 
         grid = dias_df.assign(_k=1).merge(col_df.assign(_k=1), on="_k").drop(columns="_k")
         tmp = grid.merge(tmp, on=["DOW_NUM","DOW","_COLAB_"], how="left").fillna({"Notas":0})
@@ -821,11 +826,38 @@ with row_main[0]:
         )
 
         st.plotly_chart(fig_bar, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 2) DONUT ACUMULADO POR COLABORADOR (ANO) — igual a imagem
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ---- 2) DONUT + ✅ CONTROLES ACIMA (MOVIDO PRA CÁ)
 with row_main[1]:
     st.markdown('<div class="card"><div class="card-title">ACUMULADO POR COLABORADOR</div>', unsafe_allow_html=True)
+
+    # ==================================================
+    # ✅ ALTERAÇÃO 3: CONTROLES DO GRÁFICO FICAM AQUI (onde tem espaço)
+    # ==================================================
+    if colabs_disp_all:
+        st.markdown(
+            "<div style='text-align:left;font-weight:950;color:#0b2b45;margin-bottom:6px;'>"
+            "Colaboradores (para o gráfico)</div>",
+            unsafe_allow_html=True
+        )
+        st.multiselect(
+            "",
+            options=colabs_disp_all,
+            default=st.session_state.get("colabs_graf", colabs_disp_all),
+            key="colabs_graf",
+            label_visibility="collapsed"
+        )
+
+        st.selectbox(
+            "Visual",
+            ["Lado a lado", "Empilhado"],
+            index=0 if st.session_state.get("modo_barra", "Lado a lado") == "Lado a lado" else 1,
+            key="modo_barra"
+        )
+    else:
+        st.info("Sem colaboradores no período para montar o gráfico.")
 
     # donut respeita filtros (localidade/tipo/colab) e ano selecionado
     fig_donut, _total_donut = donut_colaborador_acumulado(df_filtro, int(ano_sel) if ano_sel else None)
@@ -836,8 +868,14 @@ with row_main[1]:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 3) CARD RESUMO (mesma linha)
+# ---- 3) CARD RESUMO (mesma linha) — ✅ “baixado” um pouco
 with row_main[2]:
+    # ==================================================
+    # ✅ ALTERAÇÃO 4: ESPAÇADOR para DEScer o resumo
+    # 🔧 Ajuste aqui: 52px (aumente para descer mais / diminua para subir)
+    # ==================================================
+    st.markdown("<div style='height:52px'></div>", unsafe_allow_html=True)
+
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
         f"""
