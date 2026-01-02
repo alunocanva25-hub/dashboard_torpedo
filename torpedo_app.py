@@ -371,18 +371,11 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
 def tela_login():
     st.markdown("""
     <style>
-      /* ===== WRAPPER GERAL =====
-         Ajuste AQUI para subir/descer o card do login
-      */
+      /* ===== WRAPPER GERAL ===== */
       .login-wrap{
-        padding-top: 40px;            /* ↓ diminua para subir / ↑ aumente para descer */
+        padding-top: 40px; /* 🔧 ajuste aqui se quiser mais perto do topo */
         padding-left: 18px;
         padding-right: 18px;
-
-        /* IMPORTANTÍSSIMO:
-           isso elimina o "min-height:100vh" e o alinhamento vertical central
-           que fazia ficar como a IMG 2 (inputs lá embaixo).
-        */
         min-height: auto !important;
         display:flex !important;
         justify-content:center !important;
@@ -400,21 +393,14 @@ def tela_login():
         backdrop-filter: blur(8px);
       }
 
-      /* ===== CABEÇALHO AZUL ===== */
+      /* ===== CABEÇALHO ===== */
       .login-header{
         padding: 22px;
         background: #2f6f97;
         color: white;
       }
-      .login-header .h1{
-        font-size: 34px;
-        font-weight: 950;
-      }
-      .login-header .h2{
-        font-size: 18px;
-        font-weight: 800;
-        opacity: .95;
-      }
+      .login-header .h1{ font-size: 34px; font-weight: 950; }
+      .login-header .h2{ font-size: 18px; font-weight: 800; opacity: .95; }
 
       /* ===== CORPO ===== */
       .login-body{
@@ -423,42 +409,38 @@ def tela_login():
       }
 
       /* ===== INPUTS ===== */
-      .login-body [data-testid="stTextInput"] label{
-        display:none !important;
-      }
+      .login-body [data-testid="stTextInput"] label{ display:none !important; }
       .login-body [data-testid="stTextInput"] input{
         width: 100%;
-        border-radius: 8px !important;
+        border-radius: 10px !important;
         border: 2px solid rgba(10,40,70,0.25) !important;
         background: rgba(20,20,25,0.88) !important;
         padding: 18px 16px !important;
         font-weight: 900 !important;
         font-size: 22px !important;
         color: #ffffff !important;
+        height: 58px !important;               /* ✅ força altura igual (alinha com botões) */
+        box-sizing: border-box !important;
       }
-      .login-body input::placeholder{
-        color: rgba(255,255,255,0.65);
-      }
+      .login-body input::placeholder{ color: rgba(255,255,255,0.65); }
 
-      /* ===== BOTÕES ===== */
+      /* ===== BOTÕES (mesma altura e alinhados com inputs) ===== */
       .login-btns div.stButton > button{
         width: 100%;
-        margin-bottom: 12px;
         border-radius: 10px;
         border: 2px solid rgba(10,40,70,0.22);
         background: rgba(255,255,255,0.35);
         color: #0b2b45;
         font-weight: 950;
         font-size: 20px;
-        padding: 14px;
+        padding: 0 14px;
+        height: 58px;                          /* ✅ mesma altura dos inputs */
+        margin: 0 0 14px 0;                    /* ✅ espaçamento igual */
       }
-      .login-btns div.stButton > button:hover{
-        background: rgba(255,255,255,0.55);
-      }
+      .login-btns div.stButton > button:hover{ background: rgba(255,255,255,0.55); }
 
-      /* ===== RODAPÉ ===== */
       .login-note{
-        margin-top: 10px;
+        margin-top: 8px;
         font-size: 12px;
         font-weight: 900;
         color: rgba(11,43,69,0.85);
@@ -476,31 +458,51 @@ def tela_login():
     """, unsafe_allow_html=True)
 
     # ==================================================
-    # LAYOUT: inputs + botões CENTRALIZADOS
+    # ✅ LAYOUT TRAVADO: inputs e botões começam no MESMO topo
     # ==================================================
-    # 🔧 Ajuste os valores [2.5, 1.2] para mudar proporção
-    col_inputs, col_btns = st.columns([2.5, 1.2], gap="large")
+    # 🔧 Se quiser mais espaço pros botões, aumente o 2º número (ex: [3.2, 1.3])
+    col_inputs, col_btns = st.columns([3.4, 1.0], gap="large")
 
-    # ===== INPUTS =====
     with col_inputs:
-        usuario = st.text_input(
-            "",
-            key="login_usuario",
-            placeholder="Digite seu usuário"
-        )
-        senha = st.text_input(
-            "",
-            key="login_senha",
-            type="password",
-            placeholder="Digite sua senha"
-        )
+        usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
+        senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
-    # ===== BOTÕES =====
     with col_btns:
+        # ✅ “gambiarra boa”: cria um espaçador com a altura do primeiro input
+        # Isso faz os botões ficarem alinhados NA MESMA LINHA visual dos campos.
+        st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+
         st.markdown('<div class="login-btns">', unsafe_allow_html=True)
         entrar = st.button("Entrar")
         limpar = st.button("Limpar")
         st.markdown('</div>', unsafe_allow_html=True)
+
+    # ==================================================
+    # AÇÕES
+    # ==================================================
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        try:
+            if (usuario == st.secrets["auth"]["usuario"] and senha == st.secrets["auth"]["senha"]):
+                st.session_state["logado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+        except Exception:
+            st.error("Secrets não configurado no Streamlit Cloud.")
+
+    st.markdown("""
+          <div class="login-note">
+            ✅ Segurança via <b>st.secrets</b>
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ==================================================
     # AÇÕES DOS BOTÕES
