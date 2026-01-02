@@ -369,19 +369,22 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
 # LOGIN (centralizado, mais próximo do topo)
 # ======================================================
 def tela_login():
+    # ==================================================
+    # CSS específico do LOGIN (ajuste fino aqui)
+    # ==================================================
     st.markdown("""
     <style>
-      /* ===== WRAPPER GERAL ===== */
-      .login-wrap{
-        /* 🔧 Ajuste AQUI a distância do topo */
-        padding-top: 100px;          /* ↓ diminua para subir / ↑ aumente para descer */
-        display:flex;
-        justify-content:center;
+      /* 🔧 Distância do topo (igual img 1) */
+      .login-top-space { height: 18px; }  /* aumente/diminua */
+
+      /* Centraliza a área do login e limita largura */
+      .login-frame {
+        width: min(980px, 96vw);
+        margin: 0 auto;
       }
 
-      /* ===== CARD PRINCIPAL ===== */
-      .login-shell{
-        width: min(980px, 96vw);
+      /* Card do cabeçalho (igual ao seu) */
+      .login-card{
         border-radius: 26px;
         overflow: hidden;
         border: 2px solid rgba(10,40,70,0.25);
@@ -389,8 +392,6 @@ def tela_login():
         background: rgba(255,255,255,0.40);
         backdrop-filter: blur(8px);
       }
-
-      /* ===== CABEÇALHO AZUL ===== */
       .login-header{
         padding: 22px;
         background: #2f6f97;
@@ -405,92 +406,121 @@ def tela_login():
         font-weight: 800;
         opacity: .95;
       }
-
-      /* ===== CORPO ===== */
       .login-body{
-        padding: 26px 30px 30px 30px;
+        padding: 18px 22px 18px 22px;
         background: rgba(255,255,255,0.22);
       }
 
-      /* ===== INPUTS ===== */
-      .login-body [data-testid="stTextInput"] label{
-        display:none !important;
-      }
-      .login-body [data-testid="stTextInput"] input{
+      /* Inputs estilo “barra escura” */
+      div[data-testid="stTextInput"] label{ display:none !important; }
+      div[data-testid="stTextInput"] input{
         width: 100%;
-        border-radius: 8px !important;
+        border-radius: 10px !important;
         border: 2px solid rgba(10,40,70,0.25) !important;
         background: rgba(20,20,25,0.88) !important;
-        padding: 18px 16px !important;
+        padding: 16px 16px !important;
         font-weight: 900 !important;
-        font-size: 22px !important;
+        font-size: 20px !important;
         color: #ffffff !important;
       }
-      .login-body input::placeholder{
+      div[data-testid="stTextInput"] input::placeholder{
         color: rgba(255,255,255,0.65);
       }
 
-      /* ===== BOTÕES ===== */
+      /* Botões maiores e alinhados */
       .login-btns div.stButton > button{
         width: 100%;
         margin-bottom: 12px;
-        border-radius: 10px;
+        border-radius: 12px;
         border: 2px solid rgba(10,40,70,0.22);
         background: rgba(255,255,255,0.35);
         color: #0b2b45;
         font-weight: 950;
-        font-size: 20px;
-        padding: 14px;
+        font-size: 18px;
+        padding: 14px 10px;
       }
       .login-btns div.stButton > button:hover{
         background: rgba(255,255,255,0.55);
       }
 
-      /* ===== RODAPÉ ===== */
       .login-note{
-        margin-top: 10px;
+        margin-top: 8px;
         font-size: 12px;
         font-weight: 900;
         color: rgba(11,43,69,0.85);
         text-align: center;
       }
     </style>
-
-    <div class="login-wrap">
-      <div class="login-shell">
-        <div class="login-header">
-          <div class="h1">🔐 Acesso Restrito</div>
-          <div class="h2">Torpedo Semanal • Produtividade</div>
-        </div>
-        <div class="login-body">
     """, unsafe_allow_html=True)
 
-    # ==================================================
-    # LAYOUT: inputs + botões CENTRALIZADOS
-    # ==================================================
-    # 🔧 Ajuste os valores [2.5, 1.2] para mudar proporção
-    col_inputs, col_btns = st.columns([2.5, 1.2], gap="large")
+    # 🔧 Espaço do topo (igual img 1)
+    st.markdown("<div class='login-top-space'></div>", unsafe_allow_html=True)
 
-    # ===== INPUTS =====
-    with col_inputs:
-        usuario = st.text_input(
-            "",
-            key="login_usuario",
-            placeholder="Digite seu usuário"
-        )
-        senha = st.text_input(
-            "",
-            key="login_senha",
-            type="password",
-            placeholder="Digite sua senha"
-        )
+    # ==================================================
+    # “Frame” centralizado (tudo fica no meio)
+    # ==================================================
+    left, mid, right = st.columns([1, 6, 1])
+    with mid:
+        st.markdown("<div class='login-frame'>", unsafe_allow_html=True)
 
-    # ===== BOTÕES =====
-    with col_btns:
-        st.markdown('<div class="login-btns">', unsafe_allow_html=True)
-        entrar = st.button("Entrar")
-        limpar = st.button("Limpar")
-        st.markdown('</div>', unsafe_allow_html=True)
+        # ==================================================
+        # Card cabeçalho (igual o da imagem)
+        # ==================================================
+        st.markdown("""
+        <div class="login-card">
+          <div class="login-header">
+            <div class="h1">🔐 Acesso Restrito</div>
+            <div class="h2">Torpedo Semanal • Produtividade</div>
+          </div>
+          <div class="login-body">
+        """, unsafe_allow_html=True)
+
+        # ==================================================
+        # Inputs + Botões (igual img 1)
+        # ==================================================
+        col_inputs, col_btns = st.columns([5.2, 1.2], gap="large")
+
+        with col_inputs:
+            usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
+            senha = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
+
+        with col_btns:
+            st.markdown("<div class='login-btns'>", unsafe_allow_html=True)
+            entrar = st.button("Entrar")
+            limpar = st.button("Limpar")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ==================================================
+        # Fechamento do card
+        # ==================================================
+        st.markdown("""
+            <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)  # fecha login-frame
+
+    # ==================================================
+    # Ações
+    # ==================================================
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        try:
+            if (
+                st.session_state.get("login_usuario", "") == st.secrets["auth"]["usuario"]
+                and st.session_state.get("login_senha", "") == st.secrets["auth"]["senha"]
+            ):
+                st.session_state["logado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+        except Exception:
+            st.error("Secrets não configurado no Streamlit Cloud.")
 
     # ==================================================
     # AÇÕES DOS BOTÕES
