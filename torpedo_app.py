@@ -375,7 +375,7 @@ def tela_login():
     st.markdown("""
     <style>
       /* 🔧 Distância do topo (igual img 1) */
-      .login-top-space { height: 18px; }  /* aumente/diminua */
+      .login-top-space { height: 30px; }  /* aumente/diminua */
 
       /* Centraliza a área do login e limita largura */
       .login-frame {
