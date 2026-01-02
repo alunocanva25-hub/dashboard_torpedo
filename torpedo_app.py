@@ -246,7 +246,7 @@ st.markdown("""
   </div>
   <div class="right-note">
     BASE DRIVE (XLSX)<br>
-    <small>Colab = H • Notas = B • Tipo = C • Localidade = D</small>
+    <small>Colab = H • Notas = B • Tipo = C • Localidade = D • Data = E</small>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -288,7 +288,6 @@ def carregar_base(url_original: str) -> pd.DataFrame:
 
     if _bytes_is_xlsx(raw):
         df = pd.read_excel(BytesIO(raw), sheet_name=0, engine="openpyxl")
-        # NÃO normalizo colunas por nome aqui, pois vamos usar por posição
         return df
 
     for enc in ["utf-8-sig", "utf-8", "cp1252", "latin1"]:
@@ -334,7 +333,7 @@ def html_torpedo_table(title: str, head_class: str, df_rows: pd.DataFrame) -> st
     """
 
 def compor_demanda_do_dia(g: pd.DataFrame) -> str:
-    # Se tiver múltiplas linhas no dia, sintetiza TOP tipo/localidade
+    # Sua base não tem "texto demanda", então sintetiza por TIPO + LOCALIDADE
     tipos_top = g["_TIPO_"].value_counts().head(2).index.tolist()
     locs_top = g["_LOCAL_"].value_counts().head(2).index.tolist()
     parts = []
@@ -356,7 +355,7 @@ with colB:
     st.caption("Use quando atualizar o arquivo no Drive (XLSX).")
 
 # ======================================================
-# CARREGAMENTO (XLSX no Drive) — LINK FIXO NO SCRIPT (como você pediu)
+# CARREGAMENTO (XLSX no Drive) — LINK FIXO NO SCRIPT
 # ======================================================
 URL_BASE = "https://drive.google.com/uc?id=1VadynN01W4mNRLfq8ABZAaQP8Sfim5tb"
 
@@ -364,13 +363,13 @@ df = carregar_base(URL_BASE)
 validar_estrutura_posicional(df)
 
 # ======================================================
-# MAPEAMENTO FIXO (A/B/C/D/H)
-# A=DATA | B=NOTAS | C=TIPO | D=LOCALIDADE | H=COLAB
+# MAPEAMENTO FIXO (B/C/D/E/H)
+# A=0 B=1 C=2 D=3 E=4 H=7
 # ======================================================
-COL_DATA  = df.columns[0]   # A
 COL_NOTAS = df.columns[1]   # B (NOTAS)
 COL_TIPO  = df.columns[2]   # C (TIPO)
 COL_LOCAL = df.columns[3]   # D (LOCALIDADE)
+COL_DATA  = df.columns[4]   # E (DATA DA BAIXA)  ✅
 COL_COLAB = df.columns[7]   # H (COLABORADORES)
 
 df = df.copy()
@@ -470,27 +469,26 @@ if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
 
 # ======================================================
-# WEEK RANGE (seg–sex) e acumulados
+# RANGE seg–sex + acumulados
 # ======================================================
 if modo_periodo == "Semanal":
     mon = monday_of_week(data_ini)
     week_start = pd.to_datetime(mon)
     week_end = pd.to_datetime(mon + timedelta(days=4))
 else:
-    # mensal: usa o próprio range do calendário
     week_start = pd.to_datetime(data_ini)
     week_end = pd.to_datetime(data_fim)
 
 df_semana = df_filtro[(df_filtro[COL_DATA] >= week_start) & (df_filtro[COL_DATA] <= week_end)].copy()
 df_semana["DOW_NUM"] = df_semana[COL_DATA].dt.weekday
 df_semana["DOW"] = df_semana["DOW_NUM"].map(DOW_PT)
-df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]  # seg–sex
+df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]
 
 total_periodo = int(df_semana["_NOTAS_"].sum())
 total_ano = int(df[df[COL_DATA].dt.year == int(ano_sel)]["_NOTAS_"].sum()) if ano_sel else int(df["_NOTAS_"].sum())
 
 # ======================================================
-# Seleção de colaboradores no gráfico
+# Colaboradores no gráfico
 # ======================================================
 collabs = []
 if not df_semana.empty:
@@ -506,9 +504,6 @@ with col_g2:
         default=collabs[:3] if len(collabs) else []
     )
 
-# ======================================================
-# LINHA (gráfico por colaborador, seg–sex)
-# ======================================================
 def grafico_linha_colab(df_semana: pd.DataFrame, selected: list[str]):
     if df_semana.empty or not selected:
         return None
@@ -529,7 +524,7 @@ def grafico_linha_colab(df_semana: pd.DataFrame, selected: list[str]):
     return fig
 
 # ======================================================
-# CARDS (Topo: gráfico + KPI)
+# BLOCO PRINCIPAL (gráfico + KPI)
 # ======================================================
 with col_g1:
     st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE (SEG–SEX) — POR COLABORADOR</div>', unsafe_allow_html=True)
@@ -549,7 +544,7 @@ with col_g2:
           <div class="kpi-row">
             <div class="kpi-big">{str(total_periodo)}</div>
             <div class="kpi-mini">
-              <div class="lbl">PERÍODO</div>
+              <div class="lbl">TOTAL PERÍODO</div>
               <div class="val">{str(total_periodo)}</div>
             </div>
           </div>
@@ -568,17 +563,13 @@ with col_g2:
     )
 
 # ======================================================
-# 3 TABELAS (abaixo do gráfico) — “torpedo”
-# Cada tabela mostra seg–sex e uma “Demanda” sintetizada por dia:
-# TIPO + LOCALIDADE (porque sua base não tem DEMANDA textual)
+# 3 TABELAS (seg–sex) — estilo torpedo
 # ======================================================
 st.markdown('<div class="card"><div class="card-title">TABELAS (3) — TORPEDO SEMANAL (SEG–SEX)</div>', unsafe_allow_html=True)
 
 base_days = pd.DataFrame({"Data": pd.to_datetime([week_start + pd.Timedelta(days=i) for i in range(5)])})
 base_days["DOW"] = base_days["Data"].dt.weekday.map(DOW_PT)
 
-# escolhas para as 3 tabelas
-col_t1, col_t2, col_t3 = st.columns(3, gap="large")
 pessoas = sorted(df_filtro["_COLAB_"].dropna().unique().tolist())
 
 def tabela_para_colaborador(nome_colab: str) -> pd.DataFrame:
@@ -595,11 +586,12 @@ def tabela_para_colaborador(nome_colab: str) -> pd.DataFrame:
     out["Demanda"] = out["Demanda"].fillna("-")
     return out
 
-# Se não tiver seleção anterior, pega top 3 do período
+# top 3 do período (default)
 top3 = []
 if not df_semana.empty:
     top3 = df_semana.groupby("_COLAB_")["_NOTAS_"].sum().sort_values(ascending=False).head(3).index.tolist()
-top3 = top3 if len(top3) == 3 else (pessoas[:3] if len(pessoas) >= 3 else pessoas)
+if len(top3) < 3:
+    top3 = (pessoas[:3] if len(pessoas) >= 3 else pessoas)
 
 s1, s2, s3 = st.columns(3, gap="large")
 with s1:
@@ -615,10 +607,8 @@ selecionados = [colab1, colab2, colab3]
 
 rendered_tables = {}
 
-for i in range(3):
-    nome = selecionados[i] if i < len(selecionados) else None
-    if not nome:
-        continue
+for i in range(min(3, len(selecionados))):
+    nome = selecionados[i]
     df_tbl = tabela_para_colaborador(nome)
     rendered_tables[nome] = df_tbl
     with tcols[i]:
@@ -629,7 +619,7 @@ st.markdown("</div>", unsafe_allow_html=True)
 # ======================================================
 # PDF (relatório do torpedo)
 # ======================================================
-def gerar_pdf_torpedo(ano_ref, periodo_txt, total_periodo, total_ano, fig_dummy, tabelas_dict):
+def gerar_pdf_torpedo(ano_ref, periodo_txt, total_periodo, total_ano, tabelas_dict):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
     styles = getSampleStyleSheet()
@@ -672,7 +662,6 @@ pdf_buffer = gerar_pdf_torpedo(
     periodo_txt=periodo_txt_pdf,
     total_periodo=total_periodo,
     total_ano=total_ano,
-    fig_dummy=None,
     tabelas_dict=rendered_tables
 )
 
@@ -684,7 +673,7 @@ st.download_button(
 )
 
 # ======================================================
-# EXPORTAR DASHBOARD (PRINT PARA PDF)
+# PRINT PARA PDF
 # ======================================================
 st.markdown("""
 <style>
