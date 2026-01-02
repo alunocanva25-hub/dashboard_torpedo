@@ -374,7 +374,7 @@ def tela_login():
       /* ===== WRAPPER GERAL ===== */
       .login-wrap{
         /* 🔧 Ajuste AQUI a distância do topo */
-        padding-top: 10px;          /* ↓ diminua para subir / ↑ aumente para descer */
+        padding-top: 100px;          /* ↓ diminua para subir / ↑ aumente para descer */
         display:flex;
         justify-content:center;
       }
