@@ -11,10 +11,12 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 
+
 # ======================================================
 # CONFIG
 # ======================================================
 st.set_page_config(page_title="TORPEDO SEMANAL – Produtividade", layout="wide")
+
 
 # ======================================================
 # CSS (visual + LOGIN moderno centralizado)
@@ -204,136 +206,32 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
 </style>
 """, unsafe_allow_html=True)
 
+
+# ======================================================
+# CONSTANTES
+# ======================================================
+DOW_PT = {0: "SEG", 1: "TER", 2: "QUA", 3: "QUI", 4: "SEX", 5: "SÁB", 6: "DOM"}
+
+OPCOES_DEMANDA = [
+    "BAIXA DE LAUDO",
+    "VIAGEM AO IMMETRO-PA",
+    "ACOMPANHAMENTO APCL/APJL",
+    "ANEXO DE AR",
+    "DIGITALIZAÇÃO DE AR",
+    "RENOMEAÇÃO DE AR",
+    "ANEXO/DIGITALIZAÇÃO/RENOMEAR - AR",
+]
+
+
+# ======================================================
+# HELPERS
+# ======================================================
 def fmt_int(n: int) -> str:
     return f"{int(n):,}".replace(",", ".")
 
-# ======================================================
-# LOGIN (centralizado + moderno, inputs dentro do card)
-# ======================================================
-def tela_login():
-    st.markdown("""
-    <div class="login-wrap">
-      <div class="login-shell">
-        <div class="login-header">
-          <div class="h1">🔐 Acesso Restrito</div>
-          <div class="h2">Torpedo Semanal • Produtividade</div>
-        </div>
-        <div class="login-body">
-          <div class="login-chip">✅ Segurança via <b>st.secrets</b></div>
-    """, unsafe_allow_html=True)
+def monday_of_week(d: date) -> date:
+    return d - timedelta(days=d.weekday())
 
-    # CSS extra para “embelezar” inputs e botão dentro do card
-    st.markdown("""
-    <style>
-    /* inputs dentro do login */
-    .login-body [data-testid="stTextInput"] label{
-      font-weight: 900 !important;
-      color: rgba(11,43,69,0.95) !important;
-      font-size: 12px !important;
-      text-transform: uppercase;
-      letter-spacing: .3px;
-    }
-    .login-body [data-testid="stTextInput"] input{
-      border-radius: 14px !important;
-      border: 2px solid rgba(10,40,70,0.18) !important;
-      background: rgba(255,255,255,0.65) !important;
-      padding: 12px 12px !important;
-      font-weight: 900 !important;
-      color: #0b2b45 !important;
-    }
-    .login-body [data-testid="stTextInput"] input:focus{
-      border-color: rgba(31,119,180,0.75) !important;
-      box-shadow: 0 0 0 4px rgba(31,119,180,0.15) !important;
-    }
-
-    /* botão entrar em destaque */
-    .login-body div.stButton > button{
-      width: 100%;
-      border-radius: 14px !important;
-      border: 2px solid rgba(10,40,70,0.18) !important;
-      background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92)) !important;
-      color: #fff !important;
-      font-weight: 950 !important;
-      padding: .6rem .8rem !important;
-    }
-    .login-body div.stButton > button:hover{
-      filter: brightness(1.05);
-      border-color: rgba(255,255,255,0.25) !important;
-    }
-
-    /* botão limpar secundário */
-    .login-body .btn-secondary div.stButton > button{
-      background: rgba(255,255,255,0.55) !important;
-      color:#0b2b45 !important;
-      font-weight: 950 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário")
-    senha = st.text_input("Senha", type="password", key="login_senha", placeholder="Digite sua senha")
-
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
-        entrar = st.button("Entrar")
-    with c2:
-        st.markdown('<div class="btn-secondary">', unsafe_allow_html=True)
-        limpar = st.button("Limpar")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    if limpar:
-        st.session_state["login_usuario"] = ""
-        st.session_state["login_senha"] = ""
-        st.rerun()
-
-    if entrar:
-        try:
-            if usuario == st.secrets["auth"]["usuario"] and senha == st.secrets["auth"]["senha"]:
-                st.session_state["logado"] = True
-                st.rerun()
-            else:
-                st.error("Usuário ou senha inválidos")
-        except Exception:
-            st.error("Secrets não configurado. Verifique [auth] usuario/senha no Streamlit Cloud.")
-
-    st.markdown("""
-        <div class="small-muted" style="margin-top:10px;">
-          Para trocar usuário/senha: <b>Settings → Secrets</b> no Streamlit Cloud.
-        </div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-if "logado" not in st.session_state:
-    st.session_state["logado"] = False
-if not st.session_state["logado"]:
-    tela_login()
-    st.stop()
-
-# ======================================================
-# TOPO
-# ======================================================
-st.markdown("""
-<div class="topbar">
-  <div class="brand">
-    <div class="brand-badge">3C</div>
-    <div class="brand-text">
-      <div class="t1">TORPEDO SEMANAL – PRODUTIVIDADE</div>
-      <div class="t2">Gráfico por colaborador + 3 tabelas (seg–sex)</div>
-    </div>
-  </div>
-  <div class="right-note">
-    BASE DRIVE (XLSX)<br>
-    <small>Colab = H • Notas = B (ID) • Tipo = C • Localidade = D • Data = E</small>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ======================================================
-# HELPERS (Drive XLSX/CSV)
-# ======================================================
 def _extrair_drive_id(url: str):
     m = re.search(r"[?&]id=([a-zA-Z0-9-_]+)", url)
     if m:
@@ -385,10 +283,9 @@ def validar_estrutura_posicional(df: pd.DataFrame):
         st.error("A base precisa ter pelo menos até a coluna H (8 colunas).")
         st.stop()
 
-DOW_PT = {0: "SEG", 1: "TER", 2: "QUA", 3: "QUI", 4: "SEX", 5: "SÁB", 6: "DOM"}
-
-def monday_of_week(d: date) -> date:
-    return d - timedelta(days=d.weekday())
+def normalize_colab_series(s: pd.Series) -> pd.Series:
+    s = s.astype(str).str.upper().str.strip()
+    return s.replace({"": None, "NAN": None, "NONE": None, "NULL": None, "-": None})
 
 def html_torpedo_table(title: str, head_class: str, df_rows: pd.DataFrame) -> str:
     linhas = []
@@ -409,20 +306,121 @@ def html_torpedo_table(title: str, head_class: str, df_rows: pd.DataFrame) -> st
     </div>
     """
 
-def normalize_colab_series(s: pd.Series) -> pd.Series:
-    s = s.astype(str).str.upper().str.strip()
-    return s.replace({"": None, "NAN": None, "NONE": None, "NULL": None, "-": None})
+# ======================================================
+# LOGIN (centralizado + inputs dentro do card)
+# ======================================================
+def tela_login():
+    st.markdown("""
+    <div class="login-wrap">
+      <div class="login-shell">
+        <div class="login-header">
+          <div class="h1">🔐 Acesso Restrito</div>
+          <div class="h2">Torpedo Semanal • Produtividade</div>
+        </div>
+        <div class="login-body">
+          <div class="login-chip">✅ Segurança via <b>st.secrets</b></div>
+    """, unsafe_allow_html=True)
 
-def compor_demanda_do_dia(g: pd.DataFrame) -> str:
-    # como não existe coluna "demanda", faz resumo por tipo + localidade
-    tipos_top = g["_TIPO_"].value_counts().head(2).index.tolist()
-    locs_top  = g["_LOCAL_"].value_counts().head(2).index.tolist()
-    parts = []
-    if tipos_top:
-        parts.append("TIPO: " + ", ".join([str(x) for x in tipos_top if str(x).strip()]))
-    if locs_top:
-        parts.append("LOCAL: " + ", ".join([str(x) for x in locs_top if str(x).strip()]))
-    return " | ".join(parts) if parts else "-"
+    st.markdown("""
+    <style>
+    .login-body [data-testid="stTextInput"] label{
+      font-weight: 900 !important;
+      color: rgba(11,43,69,0.95) !important;
+      font-size: 12px !important;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .login-body [data-testid="stTextInput"] input{
+      border-radius: 14px !important;
+      border: 2px solid rgba(10,40,70,0.18) !important;
+      background: rgba(255,255,255,0.65) !important;
+      padding: 12px 12px !important;
+      font-weight: 900 !important;
+      color: #0b2b45 !important;
+    }
+    .login-body [data-testid="stTextInput"] input:focus{
+      border-color: rgba(31,119,180,0.75) !important;
+      box-shadow: 0 0 0 4px rgba(31,119,180,0.15) !important;
+    }
+    .login-body div.stButton > button{
+      width: 100%;
+      border-radius: 14px !important;
+      border: 2px solid rgba(10,40,70,0.18) !important;
+      background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92)) !important;
+      color: #fff !important;
+      font-weight: 950 !important;
+      padding: .6rem .8rem !important;
+    }
+    .login-body div.stButton > button:hover{ filter: brightness(1.05); }
+    .login-body .btn-secondary div.stButton > button{
+      background: rgba(255,255,255,0.55) !important;
+      color:#0b2b45 !important;
+      font-weight: 950 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário")
+    senha = st.text_input("Senha", type="password", key="login_senha", placeholder="Digite sua senha")
+
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        entrar = st.button("Entrar")
+    with c2:
+        st.markdown('<div class="btn-secondary">', unsafe_allow_html=True)
+        limpar = st.button("Limpar")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        try:
+            if usuario == st.secrets["auth"]["usuario"] and senha == st.secrets["auth"]["senha"]:
+                st.session_state["logado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+        except Exception:
+            st.error("Secrets não configurado. Verifique [auth] usuario/senha no Streamlit Cloud.")
+
+    st.markdown("""
+        <div class="small-muted" style="margin-top:10px;">
+          Para trocar usuário/senha: <b>Settings → Secrets</b> no Streamlit Cloud.
+        </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
+if not st.session_state["logado"]:
+    tela_login()
+    st.stop()
+
+
+# ======================================================
+# TOPO
+# ======================================================
+st.markdown("""
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-badge">3C</div>
+    <div class="brand-text">
+      <div class="t1">TORPEDO SEMANAL – PRODUTIVIDADE</div>
+      <div class="t2">Gráfico por colaborador + 3 tabelas (seg–sex)</div>
+    </div>
+  </div>
+  <div class="right-note">
+    BASE DRIVE (XLSX)<br>
+    <small>Colab = H • Notas = B (ID) • Tipo = C • Localidade = D • Data = E</small>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ======================================================
 # BOTÃO ATUALIZAR BASE
@@ -434,6 +432,7 @@ with colA:
         st.rerun()
 with colB:
     st.caption("Use quando atualizar o arquivo no Drive (XLSX).")
+
 
 # ======================================================
 # CARREGAMENTO (XLSX no Drive) — LINK FIXO NO SCRIPT
@@ -447,15 +446,16 @@ except Exception as e:
     st.error(str(e))
     st.stop()
 
+
 # ======================================================
 # MAPEAMENTO FIXO (B/C/D/E/H)
 # B=1 C=2 D=3 E=4 H=7
 # ======================================================
-COL_NOTAS = df.columns[1]   # B (NOTAS) -> normalmente ID da nota, NÃO somar!
-COL_TIPO  = df.columns[2]   # C (TIPO)
-COL_LOCAL = df.columns[3]   # D (LOCALIDADE)
-COL_DATA  = df.columns[4]   # E (DATA DA BAIXA)
-COL_COLAB = df.columns[7]   # H (COLABORADORES)
+COL_NOTAS = df.columns[1]   # B (ID da nota) -> NÃO somar!
+COL_TIPO  = df.columns[2]   # C
+COL_LOCAL = df.columns[3]   # D
+COL_DATA  = df.columns[4]   # E (data da baixa)
+COL_COLAB = df.columns[7]   # H
 
 df = df.copy()
 df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce", dayfirst=True)
@@ -466,12 +466,12 @@ df["_TIPO_"]  = df[COL_TIPO].astype(str).str.upper().str.strip()
 df["_LOCAL_"] = df[COL_LOCAL].astype(str).str.upper().str.strip()
 df["_NOTA_ID_"] = df[COL_NOTAS].astype(str).str.strip()
 
-# ✅ CORREÇÃO DO TOTAL:
-# cada linha = 1 nota atendida (não somar o ID da nota)
+# ✅ Total correto = contagem de linhas
 df["_QTD_"] = 1
 
+
 # ======================================================
-# SELETORES (Ano • Período • Calendário • Semana ISO)
+# SELETORES (Ano • Período • Calendário • Semana ISO) — ROBUSTO (sem crash no topo)
 # ======================================================
 anos_disponiveis = sorted(df[COL_DATA].dropna().dt.year.unique().astype(int).tolist())
 
@@ -495,7 +495,6 @@ with c_sel2:
 df_ano = df if (ano_sel is None) else df[df[COL_DATA].dt.year == int(ano_sel)].copy()
 ano_txt = str(ano_sel) if ano_sel else "—"
 
-# min/max seguros
 if not df_ano.empty and df_ano[COL_DATA].notna().any():
     _min_d = df_ano[COL_DATA].min().date()
     _max_d = df_ano[COL_DATA].max().date()
@@ -503,26 +502,18 @@ else:
     _min_d = date.today()
     _max_d = date.today()
 
-# --- normaliza range salvo no session_state para evitar crash ---
-# pega o último range salvo (se existir)
 saved = st.session_state.get("range_calendario", None)
-
 if isinstance(saved, (tuple, list)) and len(saved) == 2:
     s_ini, s_fim = saved
 else:
     s_ini, s_fim = _min_d, _max_d
 
-# garante tipo date
 if not isinstance(s_ini, date): s_ini = _min_d
 if not isinstance(s_fim, date): s_fim = _max_d
 
-# clampa dentro de min/max
-if s_ini < _min_d: s_ini = _min_d
-if s_ini > _max_d: s_ini = _max_d
-if s_fim < _min_d: s_fim = _min_d
-if s_fim > _max_d: s_fim = _max_d
-
-# garante ordem
+# clamp
+s_ini = max(_min_d, min(_max_d, s_ini))
+s_fim = max(_min_d, min(_max_d, s_fim))
 if s_fim < s_ini:
     s_ini, s_fim = s_fim, s_ini
 
@@ -544,7 +535,7 @@ with c_sel4:
     else:
         st.selectbox("Semana (S01..S53)", ["—"], index=0, key="semana_sel_disabled", disabled=True)
 
-# aplica semana ISO seg(1) a sex(5)
+# semana ISO seg–sex
 if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and (ano_sel is not None):
     w = int(str(semana_sel).replace("S", ""))
     try:
@@ -554,12 +545,13 @@ if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and (ano_s
     except ValueError:
         st.warning("Semana inválida para este ano (ISO). Usando o filtro por calendário.")
 
-# aplica filtro por calendário (inclusive)
+# aplica filtro calendário (inclusive)
 df_periodo = df_ano.copy()
 if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
     _dini = pd.to_datetime(data_ini)
     _dfim = pd.to_datetime(data_fim) + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
     df_periodo = df_periodo[(df_periodo[COL_DATA] >= _dini) & (df_periodo[COL_DATA] <= _dfim)].copy()
+
 
 # ======================================================
 # FILTROS (Localidade / Tipo)
@@ -579,14 +571,16 @@ if local_sel:
 if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
 
+
 # ======================================================
-# RANGE seg–sex + acumulados (usando _QTD_)
+# RANGE (seg–sex) + acumulados
 # ======================================================
 if modo_periodo == "Semanal":
     mon = monday_of_week(data_ini)
     week_start = pd.to_datetime(mon)
     week_end = pd.to_datetime(mon + timedelta(days=4))
 else:
+    # mensal: usa o range mesmo
     week_start = pd.to_datetime(data_ini)
     week_end = pd.to_datetime(data_fim)
 
@@ -598,8 +592,9 @@ df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]  # seg–sex
 total_periodo = int(df_semana["_QTD_"].sum())
 total_ano = int(df[df[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df["_QTD_"].sum())
 
+
 # ======================================================
-# Colaboradores no gráfico (TODOS)
+# Colaboradores (TODOS)
 # ======================================================
 collabs_all = normalize_colab_series(df_filtro["_COLAB_"]).dropna().unique().tolist()
 collabs_all = sorted(collabs_all)
@@ -622,8 +617,9 @@ with col_g2:
         default=top3_semana if top3_semana else (collabs_all[:3] if len(collabs_all) >= 3 else collabs_all)
     )
 
+
 # ======================================================
-# Gráfico de linha (seg–sex) por colaborador (usando _QTD_)
+# Gráfico de linha (seg–sex) por colaborador
 # ======================================================
 def grafico_linha_colab(df_sem: pd.DataFrame, selected: list[str]):
     if df_sem.empty or not selected:
@@ -647,6 +643,7 @@ def grafico_linha_colab(df_sem: pd.DataFrame, selected: list[str]):
     fig = px.line(plot_df, x="DOW", y="Notas", color="Colaborador", markers=True, template="plotly_white")
     fig.update_layout(height=320, margin=dict(l=10, r=10, t=35, b=10), legend_title_text="")
     return fig
+
 
 # ======================================================
 # BLOCO PRINCIPAL (gráfico + KPI)
@@ -685,38 +682,75 @@ with col_g2:
         unsafe_allow_html=True
     )
 
-# ======================================================
-# 3 TABELAS (seg–sex) — estilo torpedo
-# ✅ FIX DO KeyError: agregação segura com reset_index(name="Demanda")
-# ======================================================
-st.markdown('<div class="card"><div class="card-title">TABELAS (3) — TORPEDO SEMANAL (SEG–SEX)</div>', unsafe_allow_html=True)
 
-base_days = pd.DataFrame({"Data": pd.to_datetime([week_start + pd.Timedelta(days=i) for i in range(5)])})
-base_days["DOW"] = base_days["Data"].dt.weekday.map(DOW_PT)
+# ======================================================
+# DEMANDA MANUAL (não vem da base)
+# ======================================================
+def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp) -> pd.DataFrame:
+    semana_key = week_start_ts.strftime("%Y-%m-%d")
+    key_base = f"demanda|{semana_key}|{nome_colab}"
+
+    if "demanda_manual" not in st.session_state:
+        st.session_state["demanda_manual"] = {}
+
+    dias = []
+    for i in range(5):
+        d = (week_start_ts + pd.Timedelta(days=i)).date()
+        dow = ["SEG", "TER", "QUA", "QUI", "SEX"][i]
+        dias.append((d, dow))
+
+    # init
+    for d, _dow in dias:
+        k = f"{key_base}|{d.isoformat()}"
+        if k not in st.session_state["demanda_manual"]:
+            st.session_state["demanda_manual"][k] = "-"
+
+    st.markdown(
+        "<div style='text-align:left; font-weight:950; color:#0b2b45; margin: 4px 0 10px 0;'>"
+        "Selecione a demanda por dia</div>",
+        unsafe_allow_html=True
+    )
+
+    for d, dow in dias:
+        k = f"{key_base}|{d.isoformat()}"
+        cA, cB = st.columns([1, 2.2], gap="small")
+        with cA:
+            st.markdown(
+                f"<div style='font-weight:950;color:#0b2b45'>{dow} • {d.strftime('%d/%m')}</div>",
+                unsafe_allow_html=True
+            )
+        with cB:
+            opts = ["-"] + OPCOES_DEMANDA
+            atual = st.session_state["demanda_manual"].get(k, "-")
+            idx = opts.index(atual) if atual in opts else 0
+            escolha = st.selectbox(label="", options=opts, index=idx, key=f"sb_{k}")
+            st.session_state["demanda_manual"][k] = escolha
+
+    rows = []
+    for d, dow in dias:
+        k = f"{key_base}|{d.isoformat()}"
+        rows.append({"Data": pd.to_datetime(d), "DOW": dow, "Demanda": st.session_state["demanda_manual"][k]})
+
+    return pd.DataFrame(rows)
+
+
+# ======================================================
+# 3 TABELAS (seg–sex) — estilo torpedo + demanda manual
+# ======================================================
+st.markdown('<div class="card"><div class="card-title">TABELAS (3) — DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
+
+# botão limpar semana
+if st.button("🧹 Limpar demandas desta semana"):
+    semana_key = week_start.strftime("%Y-%m-%d")
+    if "demanda_manual" in st.session_state:
+        apagar = [k for k in list(st.session_state["demanda_manual"].keys()) if f"demanda|{semana_key}|" in k]
+        for k in apagar:
+            del st.session_state["demanda_manual"][k]
+    st.rerun()
 
 pessoas = collabs_all[:]  # todos colaboradores
 
-def tabela_para_colaborador(nome_colab: str) -> pd.DataFrame:
-    df_c = df_semana[df_semana["_COLAB_"] == nome_colab].copy()
-    out = base_days.copy()
-
-    if df_c.empty:
-        out["Demanda"] = "-"
-        return out
-
-    df_c["Data"] = df_c[COL_DATA].dt.normalize()
-
-    # ✅ agrega texto por dia sem quebrar colunas
-    agg = (
-        df_c.groupby("Data")
-        .apply(lambda g: compor_demanda_do_dia(g))
-        .reset_index(name="Demanda")
-    )
-
-    out = out.merge(agg, on="Data", how="left")
-    out["Demanda"] = out["Demanda"].fillna("-")
-    return out
-
+# defaults das tabelas = top3 do período, se existir
 top3_tbl = top3_semana[:] if len(top3_semana) == 3 else (pessoas[:3] if len(pessoas) >= 3 else pessoas)
 
 s1, s2, s3 = st.columns(3, gap="large")
@@ -734,12 +768,13 @@ selecionados = [colab1, colab2, colab3]
 rendered_tables = {}
 for i in range(3):
     nome = selecionados[i]
-    df_tbl = tabela_para_colaborador(nome)
-    rendered_tables[nome] = df_tbl
     with tcols[i]:
+        df_tbl = tabela_para_colaborador_manual(nome, week_start)
+        rendered_tables[nome] = df_tbl
         st.markdown(html_torpedo_table(f"DEMANDA DE APOIO – {nome}", cores[i], df_tbl), unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ======================================================
 # PDF (relatório do torpedo)
@@ -757,12 +792,12 @@ def gerar_pdf_torpedo(ano_ref, periodo_txt, total_periodo, total_ano, tabelas_di
     elementos.append(Paragraph(f"<b>Total no ano:</b> {total_ano}", styles["Normal"]))
     elementos.append(Spacer(1, 12))
 
-    elementos.append(Paragraph("<b>Tabelas (seg–sex)</b>", styles["Heading2"]))
+    elementos.append(Paragraph("<b>Demandas (seg–sex)</b>", styles["Heading2"]))
     elementos.append(Spacer(1, 6))
 
     for nome, df_tbl in (tabelas_dict or {}).items():
         elementos.append(Paragraph(f"<b>{nome}</b>", styles["Heading3"]))
-        data = [["Data", "Dia", "Resumo"]] + [
+        data = [["Data", "Dia", "Demanda"]] + [
             [pd.to_datetime(r["Data"]).strftime("%d/%m/%Y"), r["DOW"], r["Demanda"]]
             for _, r in df_tbl.iterrows()
         ]
@@ -796,6 +831,7 @@ st.download_button(
     file_name=f"Torpedo_Semanal_{ano_txt}_{week_start.strftime('%Y%m%d')}.pdf",
     mime="application/pdf"
 )
+
 
 # ======================================================
 # PRINT PARA PDF
