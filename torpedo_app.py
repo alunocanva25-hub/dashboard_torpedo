@@ -215,8 +215,8 @@ DOW_PT = {0: "SEG", 1: "TER", 2: "QUA", 3: "QUI", 4: "SEX", 5: "SÁB", 6: "DOM"}
 OPCOES_DEMANDA = [
     "BAIXA DE LAUDO",
     "VIAGEM AO IMMETRO-PA",
-    "APOIO VERIFICAÇÃO/TRIAGEM",
     "ACOMPANHAMENTO APCL/APJL",
+    "APOIO VERIFICAÇÃO/TRIAGEM",
     "ANEXO DE AR",
     "DIGITALIZAÇÃO DE AR",
     "RENOMEAÇÃO DE AR",
@@ -306,6 +306,64 @@ def html_torpedo_table(title: str, head_class: str, df_rows: pd.DataFrame) -> st
       <table class="tbl"><tbody>{body}</tbody></table>
     </div>
     """
+
+def achar_coluna_por_nome(df: pd.DataFrame, nomes_possiveis: list[str]):
+    cols = [str(c).upper().strip() for c in df.columns]
+    for i, c in enumerate(cols):
+        for n in nomes_possiveis:
+            if n in c:
+                return df.columns[i]
+    return None
+
+
+# ======================================================
+# DONUT (acumulado por colaborador - ano)
+# ======================================================
+def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
+    if df_base.empty:
+        return None, 0
+
+    base = df_base.copy()
+    if ano_ref is not None:
+        base = base[base[COL_DATA].dt.year == int(ano_ref)].copy()
+
+    base = base.dropna(subset=["_COLAB_"]).copy()
+    if base.empty:
+        return None, 0
+
+    dados = (
+        base.groupby("_COLAB_")["_QTD_"]
+        .sum()
+        .reset_index()
+        .rename(columns={"_COLAB_": "Colaborador", "_QTD_": "Notas"})
+        .sort_values("Notas", ascending=False)
+    )
+
+    total = int(dados["Notas"].sum())
+
+    fig = px.pie(
+        dados,
+        names="Colaborador",
+        values="Notas",
+        hole=0.65,
+        template="plotly_white"
+    )
+    fig.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=55, b=10),
+        legend_title_text="",
+        title=f"ACUMULADO DE NOTAS ATENDIDAS POR COLABORADOR - {ano_ref if ano_ref else ''}".strip()
+    )
+    fig.update_traces(textinfo="value")
+
+    fig.add_annotation(
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        text=f"<b>{fmt_int(total)}</b><br><span style='font-size:11px'>TOTAL</span>",
+        showarrow=False
+    )
+
+    return fig, total
+
 
 # ======================================================
 # LOGIN (centralizado + inputs dentro do card)
@@ -412,12 +470,12 @@ st.markdown("""
     <div class="brand-badge">3C</div>
     <div class="brand-text">
       <div class="t1">TORPEDO SEMANAL – PRODUTIVIDADE</div>
-      <div class="t2">Gráfico por colaborador + 3 tabelas (seg–sex)</div>
+      <div class="t2">Barras diárias (Procedente x Improcedente) + Donut acumulado</div>
     </div>
   </div>
   <div class="right-note">
     BASE DRIVE (XLSX)<br>
-    <small>Colab = H • Notas = B (ID) • Tipo = C • Localidade = D • Data = E</small>
+    <small>Colab = H • Notas = B • Tipo = C • Localidade = D • Data (baixa) = E</small>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -452,7 +510,7 @@ except Exception as e:
 # MAPEAMENTO FIXO (B/C/D/E/H)
 # B=1 C=2 D=3 E=4 H=7
 # ======================================================
-COL_NOTAS = df.columns[1]   # B (ID da nota) -> NÃO somar!
+COL_NOTAS = df.columns[1]   # B (ID / número da nota) -> NÃO somar!
 COL_TIPO  = df.columns[2]   # C
 COL_LOCAL = df.columns[3]   # D
 COL_DATA  = df.columns[4]   # E (data da baixa)
@@ -470,9 +528,18 @@ df["_NOTA_ID_"] = df[COL_NOTAS].astype(str).str.strip()
 # ✅ Total correto = contagem de linhas
 df["_QTD_"] = 1
 
+# ======================================================
+# RESULTADO (Procedente/Improcedente) - tenta achar na base
+# ======================================================
+COL_RESULTADO = achar_coluna_por_nome(df, ["RESULTADO", "SITUA", "STATUS", "PARECER"])
+if COL_RESULTADO:
+    df["_RES_"] = df[COL_RESULTADO].astype(str).str.upper().str.strip()
+else:
+    df["_RES_"] = ""
+
 
 # ======================================================
-# SELETORES (Ano • Período • Calendário • Semana ISO) — ROBUSTO (sem crash no topo)
+# SELETORES (Ano • Período • Calendário • Semana ISO) — ROBUSTO
 # ======================================================
 anos_disponiveis = sorted(df[COL_DATA].dropna().dt.year.unique().astype(int).tolist())
 
@@ -555,22 +622,28 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade / Tipo)
+# FILTROS (Localidade / Tipo) + (opcional) Colaborador
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
+collabs_all = normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()
+collabs_all = sorted(collabs_all)
 
-f1, f2 = st.columns([1.4, 1.4], gap="medium")
+f1, f2, f3 = st.columns([1.3, 1.3, 1.4], gap="medium")
 with f1:
     local_sel = st.multiselect("Localidade", options=locais, default=[])
 with f2:
     tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
+with f3:
+    colab_filtro = st.multiselect("Colaborador (opcional)", options=collabs_all, default=[])
 
 df_filtro = df_periodo.copy()
 if local_sel:
     df_filtro = df_filtro[df_filtro["_LOCAL_"].isin([str(s).upper().strip() for s in local_sel])]
 if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
+if colab_filtro:
+    df_filtro = df_filtro[df_filtro["_COLAB_"].isin([str(s).upper().strip() for s in colab_filtro])]
 
 
 # ======================================================
@@ -581,84 +654,99 @@ if modo_periodo == "Semanal":
     week_start = pd.to_datetime(mon)
     week_end = pd.to_datetime(mon + timedelta(days=4))
 else:
-    # mensal: usa o range mesmo
     week_start = pd.to_datetime(data_ini)
     week_end = pd.to_datetime(data_fim)
 
 df_semana = df_filtro[(df_filtro[COL_DATA] >= week_start) & (df_filtro[COL_DATA] <= week_end)].copy()
 df_semana["DOW_NUM"] = df_semana[COL_DATA].dt.weekday
 df_semana["DOW"] = df_semana["DOW_NUM"].map(DOW_PT)
-df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]  # seg–sex
+
+# seg–sex apenas
+df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)].copy()
 
 total_periodo = int(df_semana["_QTD_"].sum())
-total_ano = int(df[df[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df["_QTD_"].sum())
+total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df_filtro["_QTD_"].sum())
 
 
 # ======================================================
-# Colaboradores (TODOS)
+# LINHA PRINCIPAL: BARRAS (PROC/IMPROC) + DONUT + RESUMO (MESMA LINHA)
 # ======================================================
-collabs_all = normalize_colab_series(df_filtro["_COLAB_"]).dropna().unique().tolist()
-collabs_all = sorted(collabs_all)
+row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
-top3_semana = []
-if not df_semana.empty:
-    top3_semana = (
-        df_semana.groupby("_COLAB_")["_QTD_"]
-        .sum()
-        .sort_values(ascending=False)
-        .head(3)
-        .index.tolist()
-    )
+# ---- 1) BARRAS DIÁRIO (Procedente/Improcedente)
+with row_main[0]:
+    st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — PROCEDENTE x IMPROCEDENTE</div>', unsafe_allow_html=True)
 
-col_g1, col_g2 = st.columns([2.4, 1.0], gap="medium")
-with col_g2:
-    selected_collabs = st.multiselect(
-        "Colaboradores no gráfico",
-        options=collabs_all,
-        default=top3_semana if top3_semana else (collabs_all[:3] if len(collabs_all) >= 3 else collabs_all)
-    )
-
-
-# ======================================================
-# Gráfico de linha (seg–sex) por colaborador
-# ======================================================
-def grafico_linha_colab(df_sem: pd.DataFrame, selected: list[str]):
-    if df_sem.empty or not selected:
-        return None
-
-    base_days = pd.DataFrame({"DOW_NUM": [0,1,2,3,4], "DOW": ["SEG","TER","QUA","QUI","SEX"]})
-    out = []
-    for c in selected:
-        tmp = (
-            df_sem[df_sem["_COLAB_"] == c]
-            .groupby(["DOW_NUM", "DOW"], as_index=False)["_QTD_"]
-            .sum()
-        )
-        tmp = base_days.merge(tmp, on=["DOW_NUM","DOW"], how="left")
-        tmp["_QTD_"] = tmp["_QTD_"].fillna(0).astype(int)
-        tmp["Colaborador"] = c
-        tmp = tmp.rename(columns={"_QTD_": "Notas"})
-        out.append(tmp)
-
-    plot_df = pd.concat(out, ignore_index=True).sort_values("DOW_NUM")
-    fig = px.line(plot_df, x="DOW", y="Notas", color="Colaborador", markers=True, template="plotly_white")
-    fig.update_layout(height=320, margin=dict(l=10, r=10, t=35, b=10), legend_title_text="")
-    return fig
-
-
-# ======================================================
-# BLOCO PRINCIPAL (gráfico + KPI)
-# ======================================================
-with col_g1:
-    st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE (SEG–SEX) — POR COLABORADOR</div>', unsafe_allow_html=True)
-    fig_line = grafico_linha_colab(df_semana, selected_collabs)
-    if fig_line is None:
-        st.info("Sem dados no período selecionado ou nenhum colaborador selecionado.")
+    if df_semana.empty:
+        st.info("Sem dados no período selecionado.")
     else:
-        st.plotly_chart(fig_line, use_container_width=True)
+        if not COL_RESULTADO:
+            st.warning("Não encontrei coluna RESULTADO/STATUS na base. Vou mostrar Total por dia (sem separação).")
+            tmp = (
+                df_semana.groupby(["DOW_NUM", "DOW"], as_index=False)["_QTD_"]
+                .sum()
+                .rename(columns={"_QTD_": "Total"})
+                .sort_values("DOW_NUM")
+            )
+            fig_bar = px.bar(tmp, x="DOW", y="Total", text="Total", template="plotly_white")
+            fig_bar.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            base = df_semana.copy()
+
+            # Classifica
+            base["_CLASSE_"] = "OUTROS"
+            base.loc[base["_RES_"].str.contains("PROCED", na=False), "_CLASSE_"] = "PROCEDENTE"
+            base.loc[base["_RES_"].str.contains("IMPROCED", na=False), "_CLASSE_"] = "IMPROCEDENTE"
+
+            base = base[base["_CLASSE_"].isin(["PROCEDENTE", "IMPROCEDENTE"])].copy()
+
+            # conta por dia/classe
+            tmp = (
+                base.groupby(["DOW_NUM", "DOW", "_CLASSE_"], as_index=False)["_QTD_"]
+                .sum()
+                .rename(columns={"_QTD_": "Notas"})
+            )
+
+            # garante seg-sex + classes
+            base_days = pd.DataFrame({"DOW_NUM":[0,1,2,3,4], "DOW":["SEG","TER","QUA","QUI","SEX"]})
+            classes = ["PROCEDENTE", "IMPROCEDENTE"]
+            grid = base_days.assign(_k=1).merge(pd.DataFrame({"_CLASSE_":classes}).assign(_k=1), on="_k").drop(columns="_k")
+            tmp = grid.merge(tmp, on=["DOW_NUM","DOW","_CLASSE_"], how="left").fillna({"Notas":0})
+            tmp["Notas"] = tmp["Notas"].astype(int)
+
+            # barras agrupadas
+            fig_bar = px.bar(
+                tmp.sort_values("DOW_NUM"),
+                x="DOW",
+                y="Notas",
+                color="_CLASSE_",
+                barmode="group",
+                text="Notas",
+                template="plotly_white",
+                category_orders={"DOW": ["SEG","TER","QUA","QUI","SEX"], "_CLASSE_": ["PROCEDENTE","IMPROCEDENTE"]},
+                color_discrete_map={"PROCEDENTE":"#2e7d32", "IMPROCEDENTE":"#c62828"},
+            )
+            fig_bar.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10), legend_title_text="")
+            st.plotly_chart(fig_bar, use_container_width=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-with col_g2:
+# ---- 2) DONUT ACUMULADO POR COLABORADOR (ANO) — igual a imagem
+with row_main[1]:
+    st.markdown('<div class="card"><div class="card-title">ACUMULADO POR COLABORADOR</div>', unsafe_allow_html=True)
+
+    # donut respeita filtros (localidade/tipo/colab) e ano selecionado
+    fig_donut, _total_donut = donut_colaborador_acumulado(df_filtro, int(ano_sel) if ano_sel else None)
+    if fig_donut is None:
+        st.info("Sem dados para o acumulado por colaborador.")
+    else:
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ---- 3) CARD RESUMO (mesma linha)
+with row_main[2]:
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
         f"""
@@ -666,10 +754,6 @@ with col_g2:
           <div class="card-title">RESUMO</div>
           <div class="kpi-row">
             <div class="kpi-big">{fmt_int(total_periodo)}</div>
-            <div class="kpi-mini">
-              <div class="lbl">TOTAL PERÍODO</div>
-              <div class="val">{fmt_int(total_periodo)}</div>
-            </div>
           </div>
           <div style="margin-top:10px; font-weight:950; color:#0b2b45;">
             {periodo_txt}
@@ -749,18 +833,30 @@ if st.button("🧹 Limpar demandas desta semana"):
             del st.session_state["demanda_manual"][k]
     st.rerun()
 
-pessoas = collabs_all[:]  # todos colaboradores
+pessoas = sorted(normalize_colab_series(df_filtro["_COLAB_"]).dropna().unique().tolist())
 
-# defaults das tabelas = top3 do período, se existir
-top3_tbl = top3_semana[:] if len(top3_semana) == 3 else (pessoas[:3] if len(pessoas) >= 3 else pessoas)
+# defaults das tabelas = top3 do período
+top3_tbl = []
+if not df_semana.empty:
+    top3_tbl = (
+        df_semana.dropna(subset=["_COLAB_"])
+        .groupby("_COLAB_")["_QTD_"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(3)
+        .index.tolist()
+    )
+if len(top3_tbl) < 3:
+    resto = [p for p in pessoas if p not in top3_tbl]
+    top3_tbl = (top3_tbl + resto)[:3]
 
 s1, s2, s3 = st.columns(3, gap="large")
 with s1:
-    colab1 = st.selectbox("Tabela 1", options=pessoas, index=(pessoas.index(top3_tbl[0]) if top3_tbl else 0) if pessoas else 0, key="t1")
+    colab1 = st.selectbox("Tabela 1", options=pessoas, index=(pessoas.index(top3_tbl[0]) if top3_tbl and top3_tbl[0] in pessoas else 0), key="t1")
 with s2:
-    colab2 = st.selectbox("Tabela 2", options=pessoas, index=(pessoas.index(top3_tbl[1]) if len(top3_tbl) > 1 else 0) if pessoas else 0, key="t2")
+    colab2 = st.selectbox("Tabela 2", options=pessoas, index=(pessoas.index(top3_tbl[1]) if len(top3_tbl) > 1 and top3_tbl[1] in pessoas else 0), key="t2")
 with s3:
-    colab3 = st.selectbox("Tabela 3", options=pessoas, index=(pessoas.index(top3_tbl[2]) if len(top3_tbl) > 2 else 0) if pessoas else 0, key="t3")
+    colab3 = st.selectbox("Tabela 3", options=pessoas, index=(pessoas.index(top3_tbl[2]) if len(top3_tbl) > 2 and top3_tbl[2] in pessoas else 0), key="t3")
 
 tcols = st.columns(3, gap="large")
 cores = ["head-blue", "head-green", "head-yellow"]
