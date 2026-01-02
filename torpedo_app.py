@@ -1,20 +1,24 @@
 import io
+import re
 import datetime as dt
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import requests
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-
 # ======================================================
 # CONFIG
 # ======================================================
-st.set_page_config(page_title="Torpedo Produtividade Semanal", layout="wide")
+st.set_page_config(page_title="Torpedo Semanal", layout="wide")
 
+# ======================================================
+# CSS (Dashboard + Login)
+# ======================================================
 CSS = """
 <style>
 .stApp { background: #EAF2FB; }
@@ -48,41 +52,29 @@ CSS = """
   min-width: 140px;
 }
 
-.small{
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-.section-title{
-  font-weight: 900;
-  font-size: 18px;
-  margin: 0 0 6px 0;
-}
+.small{ font-size: 12px; opacity: 0.85; }
+.section-title{ font-weight: 900; font-size: 18px; margin: 0 0 6px 0; }
 
 .tablewrap{
   border-radius: 16px;
   overflow: hidden;
   border: 2px solid rgba(10,40,70,0.12);
 }
-
 .tblhead{
   padding: 10px 12px;
   font-weight: 900;
   color: #0B2A47;
 }
-
 .demotable{
   width: 100%;
   border-collapse: collapse;
   background: #fff;
 }
-
-.demotable td, .demotable th{
+.demotable td{
   border-top: 1px solid rgba(10,40,70,0.12);
   padding: 10px 10px;
   font-size: 14px;
 }
-
 .col-date{ width: 140px; font-weight: 700; }
 .col-dow{ width: 80px; font-weight: 900; text-align:center; }
 
@@ -90,19 +82,131 @@ CSS = """
 .head-green{ background:#2CA02C; color:#fff; }
 .head-yellow{ background:#F1C40F; color:#1B1B1B; }
 
+/* LOGIN */
+.login-wrap{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card{
+  width: min(430px, 92vw);
+  background: #FFFFFF;
+  border: 2px solid rgba(10,40,70,0.12);
+  border-radius: 18px;
+  box-shadow: 0 10px 25px rgba(10,40,70,0.12);
+  padding: 22px 20px;
+}
+.login-title{
+  font-size: 22px;
+  font-weight: 900;
+  color: #0B2A47;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.login-sub{
+  font-size: 13px;
+  opacity: .8;
+  text-align: center;
+  margin-bottom: 14px;
+}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-
-# ======================================================
-# HELPERS
-# ======================================================
 DOW_PT = {0: "SEG", 1: "TER", 2: "QUA", 3: "QUI", 4: "SEX", 5: "SÁB", 6: "DOM"}
 
-def parse_any_date(s: pd.Series) -> pd.Series:
-    # tenta inferir datas pt-BR e ISO
-    return pd.to_datetime(s, errors="coerce", dayfirst=True)
+# ======================================================
+# LOGIN (IMPLANTADO + CENTRALIZADO)
+# ======================================================
+def tela_login():
+    st.markdown("""
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-title">🔐 Acesso Restrito</div>
+        <div class="login-sub">Informe suas credenciais para continuar</div>
+    """, unsafe_allow_html=True)
+
+    usuario = st.text_input("Usuário", key="login_usuario")
+    senha = st.text_input("Senha", type="password", key="login_senha")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        entrar = st.button("Entrar", use_container_width=True)
+    with col2:
+        limpar = st.button("Limpar", use_container_width=True)
+
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        if usuario == st.secrets["auth"]["usuario"] and senha == st.secrets["auth"]["senha"]:
+            st.session_state["logado"] = True
+            st.rerun()
+        else:
+            st.error("Usuário ou senha inválidos")
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
+if not st.session_state["logado"]:
+    tela_login()
+    st.stop()
+
+# ======================================================
+# FUNÇÕES (PADRÃO DO OUTRO PROJETO)
+# ======================================================
+def normalizar_nome_col(c: str) -> str:
+    c = str(c).strip().upper()
+    c = re.sub(r"\s+", " ", c)
+    return c
+
+def achar_coluna(df: pd.DataFrame, candidatos: list[str]) -> str:
+    """
+    Encontra a primeira coluna que bata com qualquer item em candidatos,
+    comparando por 'contém' (tolerante) no nome normalizado.
+    """
+    cols_norm = {normalizar_nome_col(c): c for c in df.columns}
+    # match exato primeiro
+    for cand in candidatos:
+        cand_n = normalizar_nome_col(cand)
+        if cand_n in cols_norm:
+            return cols_norm[cand_n]
+    # match por "contém"
+    for cand in candidatos:
+        cand_n = normalizar_nome_col(cand)
+        for cnorm, coriginal in cols_norm.items():
+            if cand_n in cnorm:
+                return coriginal
+    raise ValueError(f"Não encontrei coluna. Tentei: {candidatos}")
+
+def validar_estrutura(df: pd.DataFrame):
+    if df is None or df.empty:
+        raise ValueError("A base carregou vazia. Verifique o link/arquivo.")
+    if len(df.columns) < 2:
+        raise ValueError("A base tem poucas colunas. Verifique se o XLSX está correto.")
+
+@st.cache_data(show_spinner=False, ttl=300)
+def carregar_base(url_drive_uc: str, sheet_name: str | int | None = 0) -> pd.DataFrame:
+    """
+    Baixa XLSX do Drive via link 'uc?id=' e lê com pandas.read_excel().
+    """
+    try:
+        r = requests.get(url_drive_uc, timeout=35)
+        r.raise_for_status()
+    except Exception as e:
+        raise RuntimeError(f"Falha ao baixar o XLSX do Drive: {e}")
+
+    content = io.BytesIO(r.content)
+    try:
+        df = pd.read_excel(content, sheet_name=sheet_name, engine="openpyxl")
+    except Exception as e:
+        raise RuntimeError(f"Falha ao ler XLSX (aba={sheet_name}): {e}")
+
+    return df
 
 def week_monday(d: dt.date) -> dt.date:
     return d - dt.timedelta(days=d.weekday())
@@ -112,19 +216,7 @@ def safe_upper(x):
         return x
     return str(x).strip().upper()
 
-def read_table(uploaded_file: st.runtime.uploaded_file_manager.UploadedFile) -> pd.DataFrame:
-    name = uploaded_file.name.lower()
-    if name.endswith(".csv"):
-        return pd.read_csv(uploaded_file)
-    if name.endswith(".xlsx") or name.endswith(".xls"):
-        return pd.read_excel(uploaded_file)
-    raise ValueError("Formato não suportado. Use CSV ou Excel.")
-
-def build_week_days(monday: dt.date):
-    return [monday + dt.timedelta(days=i) for i in range(5)]  # SEG..SEX
-
 def html_demanda_table(title: str, color_class: str, df_rows: pd.DataFrame) -> str:
-    # df_rows: Data(date), DOW(str), Demanda(str)
     rows_html = ""
     for _, r in df_rows.iterrows():
         dstr = pd.to_datetime(r["Data"]).strftime("%d/%m/%Y")
@@ -139,9 +231,7 @@ def html_demanda_table(title: str, color_class: str, df_rows: pd.DataFrame) -> s
       <div class="tablewrap">
         <div class="tblhead {color_class}">{title}</div>
         <table class="demotable">
-          <tbody>
-            {rows_html}
-          </tbody>
+          <tbody>{rows_html}</tbody>
         </table>
       </div>
     """
@@ -163,8 +253,7 @@ def make_pdf_bytes(title: str,
                    total_semanal: int,
                    total_ano: int,
                    prod_semana_table: pd.DataFrame,
-                   demandas_tables: dict) -> bytes:
-    # demandas_tables: {nome: df(Data,DOW,Demanda)}
+                   demandas_tables: dict[str, pd.DataFrame]) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=28, leftMargin=28, topMargin=28, bottomMargin=28)
     styles = getSampleStyleSheet()
@@ -180,7 +269,9 @@ def make_pdf_bytes(title: str,
     story.append(Paragraph("<b>Produtividade da semana (SEG a SEX)</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
 
-    # tabela produtividade
+    if prod_semana_table is None or prod_semana_table.empty:
+        prod_semana_table = pd.DataFrame(columns=["Data", "DOW", "Colaborador", "Notas"])
+
     tdata = [list(prod_semana_table.columns)] + prod_semana_table.values.tolist()
     t = Table(tdata, hAlign="LEFT")
     t.setStyle(TableStyle([
@@ -198,8 +289,12 @@ def make_pdf_bytes(title: str,
     story.append(Paragraph("<b>Demandas de apoio</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
 
-    for nome, df_dem in demandas_tables.items():
+    for nome, df_dem in (demandas_tables or {}).items():
         story.append(Paragraph(f"<b>{nome}</b>", styles["Heading3"]))
+
+        if df_dem is None or df_dem.empty:
+            df_dem = pd.DataFrame(columns=["Data", "DOW", "Demanda"])
+
         tdata2 = [["Data", "Dia", "Demanda"]] + [
             [pd.to_datetime(r["Data"]).strftime("%d/%m/%Y"), r["DOW"], r["Demanda"]]
             for _, r in df_dem.iterrows()
@@ -219,132 +314,150 @@ def make_pdf_bytes(title: str,
     doc.build(story)
     return buffer.getvalue()
 
+# ======================================================
+# DEFAULTS (SECRETS)
+# ======================================================
+URL_BASE_DEFAULT = ""
+DEFAULT_YEAR = dt.date.today().year
+DEFAULT_SHEET = 0
+
+if "torpedo" in st.secrets:
+    URL_BASE_DEFAULT = st.secrets["torpedo"].get("url_base", URL_BASE_DEFAULT)
+    DEFAULT_YEAR = int(st.secrets["torpedo"].get("default_year", DEFAULT_YEAR))
+    DEFAULT_SHEET = st.secrets["torpedo"].get("sheet_name", DEFAULT_SHEET)
 
 # ======================================================
-# SIDEBAR
+# HEADER
 # ======================================================
 st.markdown(
     """
     <div class="titlebar">
-      <div style="font-size:28px;font-weight:900;color:#0B2A47;">TORPEDO PRODUTIVIDADE SEMANAL</div>
-      <div class="small">Painel semanal com produtividade por colaborador + demandas de apoio</div>
+      <div style="font-size:28px;font-weight:900;color:#0B2A47;">TORPEDO SEMANAL</div>
+      <div class="small">Base XLSX no Drive (igual ao outro projeto) + Login + Export PDF/Excel</div>
     </div>
     """,
     unsafe_allow_html=True
 )
 
+# ======================================================
+# SIDEBAR
+# ======================================================
 with st.sidebar:
     st.header("⚙️ Configurações")
 
-    up_prod = st.file_uploader("📄 Upload PRODUTIVIDADE (CSV/Excel)", type=["csv", "xlsx", "xls"])
-    up_dem = st.file_uploader("📄 Upload DEMANDAS (CSV/Excel)", type=["csv", "xlsx", "xls"])
+    if st.button("🚪 Sair"):
+        st.session_state["logado"] = False
+        st.rerun()
 
     st.divider()
-    st.subheader("Semana de referência")
+    st.subheader("📦 Base (XLSX no Drive)")
+    URL_BASE = st.text_input("URL (uc?id=...)", value=URL_BASE_DEFAULT)
+    sheet_name = st.text_input("Aba (nome ou índice)", value=str(DEFAULT_SHEET))
+
+    load_btn = st.button("🔄 Carregar Base", use_container_width=True)
+
+    st.divider()
+    st.subheader("📅 Semana")
     ref_date = st.date_input("Escolha uma data da semana", value=dt.date.today())
     monday = week_monday(ref_date)
-    week_days = build_week_days(monday)
+    week_start = pd.to_datetime(monday)
+    week_end = pd.to_datetime(monday + dt.timedelta(days=4))
+    periodo_str = f"Semana: {week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
 
-    ano_acumulado = st.number_input("Ano do acumulado", value=dt.date.today().year, step=1)
+    ano_acumulado = st.number_input("Ano do acumulado", value=DEFAULT_YEAR, step=1)
 
     st.divider()
-    st.subheader("Tabelas de Demanda")
+    st.subheader("👥 Tabelas (3 colaboradores)")
     default_people = ["DAYVISON", "MATHEUS", "REDILENA"]
-    people_tables = st.multiselect("Colaboradores nas 3 tabelas", options=default_people, default=default_people)
-
-    st.caption("Dica: deixe 3 nomes (como na imagem).")
-
+    people_tables = st.multiselect("Escolha 3", options=default_people, default=default_people)
 
 # ======================================================
-# LOAD DATA
+# CARREGAMENTO BASE
 # ======================================================
-prod = pd.DataFrame(columns=["Data", "Colaborador", "Notas"])
-dem = pd.DataFrame(columns=["Data", "Colaborador", "Demanda"])
-
-errors = []
-
-if up_prod is not None:
+df = None
+if load_btn:
     try:
-        prod = read_table(up_prod).copy()
+        if not URL_BASE.strip():
+            raise ValueError("Informe a URL do Drive (uc?id=...).")
+
+        # sheet_name pode ser número (índice) ou string (nome)
+        sh = sheet_name.strip()
+        sh_arg = int(sh) if sh.isdigit() else sh
+
+        df = carregar_base(URL_BASE.strip(), sheet_name=sh_arg)
+        validar_estrutura(df)
+        st.success("Base carregada com sucesso.")
     except Exception as e:
-        errors.append(f"Erro ao ler PRODUTIVIDADE: {e}")
+        st.error(str(e))
 
-if up_dem is not None:
-    try:
-        dem = read_table(up_dem).copy()
-    except Exception as e:
-        errors.append(f"Erro ao ler DEMANDAS: {e}")
+# se não clicou carregar ainda, tenta manter em cache via session
+if "df_base" not in st.session_state:
+    st.session_state["df_base"] = None
+if df is not None:
+    st.session_state["df_base"] = df
 
-if errors:
-    for e in errors:
-        st.error(e)
+df = st.session_state["df_base"]
 
-# Normaliza colunas
-if not prod.empty:
-    needed = {"Data", "Colaborador", "Notas"}
-    if not needed.issubset(set(prod.columns)):
-        st.warning(f"Produtividade: colunas obrigatórias faltando. Precisa ter: {sorted(list(needed))}")
-    else:
-        prod["Data"] = parse_any_date(prod["Data"])
-        prod["Colaborador"] = prod["Colaborador"].apply(safe_upper)
-        prod["Notas"] = pd.to_numeric(prod["Notas"], errors="coerce").fillna(0).astype(int)
-        prod = prod.dropna(subset=["Data"])
-
-if not dem.empty:
-    needed2 = {"Data", "Colaborador", "Demanda"}
-    if not needed2.issubset(set(dem.columns)):
-        st.warning(f"Demandas: colunas obrigatórias faltando. Precisa ter: {sorted(list(needed2))}")
-    else:
-        dem["Data"] = parse_any_date(dem["Data"])
-        dem["Colaborador"] = dem["Colaborador"].apply(safe_upper)
-        dem["Demanda"] = dem["Demanda"].fillna("-").astype(str)
-        dem = dem.dropna(subset=["Data"])
-
+if df is None:
+    st.info("Carregue a base no menu lateral para iniciar.")
+    st.stop()
 
 # ======================================================
-# FILTERS / CALCS
+# MAPEAR COLUNAS (Torpedo)
 # ======================================================
-week_start = pd.to_datetime(monday)
-week_end = pd.to_datetime(monday + dt.timedelta(days=4))  # sexta
-periodo_str = f"Semana: {week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
+# Mantive o padrão de achar_coluna. Ajuste os candidatos conforme sua base real.
+COL_DATA = achar_coluna(df, ["DATA", "DT", "DIA", "DATA ATENDIMENTO", "DT ATEND"])
+COL_COLAB = achar_coluna(df, ["COLABORADOR", "USUARIO", "RESPONSAVEL", "NOME", "COLAB"])
+COL_NOTAS = achar_coluna(df, ["NOTAS", "QTD", "QTDE", "QUANTIDADE", "TOTAL", "ATENDIDAS", "NOTAS ATENDIDAS", "NOTA"])
+# DEMANDA pode não existir; se não existir, o dashboard ainda roda
+COL_DEMANDA = None
+try:
+    COL_DEMANDA = achar_coluna(df, ["DEMANDA", "APOIO", "OBS", "OBSERVACAO", "DESCRICAO", "MOTIVO"])
+except Exception:
+    COL_DEMANDA = None
 
-prod_semana = prod[(prod["Data"] >= week_start) & (prod["Data"] <= week_end)].copy() if not prod.empty else prod.copy()
+# Normaliza
+df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce", dayfirst=True)
+df = df.dropna(subset=[COL_DATA]).copy()
+df["_COLAB_"] = df[COL_COLAB].astype(str).str.upper().str.strip()
+df["_NOTAS_"] = pd.to_numeric(df[COL_NOTAS], errors="coerce").fillna(0).astype(int)
 
-# Cria dia da semana pt
-if not prod_semana.empty:
-    prod_semana["DOW_NUM"] = prod_semana["Data"].dt.weekday
-    prod_semana["DOW"] = prod_semana["DOW_NUM"].map(DOW_PT)
-    prod_semana = prod_semana[prod_semana["DOW_NUM"].between(0,4)]  # SEG..SEX
+if COL_DEMANDA:
+    df["_DEMANDA_"] = df[COL_DEMANDA].fillna("-").astype(str)
+else:
+    df["_DEMANDA_"] = "-"
 
-# Totais
-total_semanal = int(prod_semana["Notas"].sum()) if not prod_semana.empty else 0
+# ======================================================
+# FILTROS / CÁLCULOS
+# ======================================================
+df_semana = df[(df[COL_DATA] >= week_start) & (df[COL_DATA] <= week_end)].copy()
+df_semana["DOW_NUM"] = df_semana[COL_DATA].dt.weekday
+df_semana["DOW"] = df_semana["DOW_NUM"].map(DOW_PT)
+df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]
 
-acumulado_ano = prod.copy()
-if not acumulado_ano.empty:
-    acumulado_ano = acumulado_ano[acumulado_ano["Data"].dt.year == int(ano_acumulado)]
-total_ano = int(acumulado_ano["Notas"].sum()) if not acumulado_ano.empty else 0
+total_semanal = int(df_semana["_NOTAS_"].sum())
 
-# Colaboradores para gráfico: top 3 da semana (se existir), senão todos do acumulado
-collabs_week = []
-if not prod_semana.empty:
-    collabs_week = (
-        prod_semana.groupby("Colaborador")["Notas"].sum().sort_values(ascending=False).head(5).index.tolist()
+df_ano = df[df[COL_DATA].dt.year == int(ano_acumulado)].copy()
+total_ano = int(df_ano["_NOTAS_"].sum())
+
+# colaborador no gráfico: top 6 da semana
+collabs = []
+if not df_semana.empty:
+    collabs = df_semana.groupby("_COLAB_")["_NOTAS_"].sum().sort_values(ascending=False).head(6).index.tolist()
+elif not df_ano.empty:
+    collabs = df_ano["_COLAB_"].dropna().unique().tolist()
+
+with st.sidebar:
+    st.divider()
+    st.subheader("📈 Gráfico")
+    selected_collabs = st.multiselect(
+        "Colaboradores no gráfico",
+        options=sorted(set(collabs)) if collabs else [],
+        default=collabs[:3] if collabs else []
     )
-else:
-    if not acumulado_ano.empty:
-        collabs_week = acumulado_ano["Colaborador"].dropna().unique().tolist()
-
-# Sidebar selector (somente se tiver dados)
-if collabs_week:
-    with st.sidebar:
-        st.subheader("Gráfico de linhas")
-        selected_collabs = st.multiselect("Colaboradores no gráfico", options=sorted(set(collabs_week)), default=collabs_week[:3])
-else:
-    selected_collabs = []
-
 
 # ======================================================
-# LAYOUT
+# DASHBOARD (Layout)
 # ======================================================
 col_left, col_right = st.columns([1.15, 0.85], gap="large")
 
@@ -352,36 +465,23 @@ with col_left:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown(f'<div class="section-title">PRODUTIVIDADE SEMANAL</div><div class="small">{periodo_str}</div>', unsafe_allow_html=True)
 
-    if prod_semana.empty or not selected_collabs:
-        st.info("Envie o arquivo de produtividade e selecione colaboradores para exibir o gráfico.")
+    if df_semana.empty or not selected_collabs:
+        st.info("Sem dados da semana ou nenhum colaborador selecionado.")
     else:
-        # garante todos os dias SEG..SEX apareçam por colaborador
-        base_days = pd.DataFrame({
-            "DOW_NUM": [0,1,2,3,4],
-            "DOW": ["SEG","TER","QUA","QUI","SEX"]
-        })
+        base_days = pd.DataFrame({"DOW_NUM": [0,1,2,3,4], "DOW": ["SEG","TER","QUA","QUI","SEX"]})
         out = []
         for c in selected_collabs:
-            tmp = prod_semana[prod_semana["Colaborador"] == c].groupby(["DOW_NUM","DOW"], as_index=False)["Notas"].sum()
+            tmp = df_semana[df_semana["_COLAB_"] == c].groupby(["DOW_NUM","DOW"], as_index=False)["_NOTAS_"].sum()
             tmp = base_days.merge(tmp, on=["DOW_NUM","DOW"], how="left")
-            tmp["Notas"] = tmp["Notas"].fillna(0).astype(int)
+            tmp["_NOTAS_"] = tmp["_NOTAS_"].fillna(0).astype(int)
             tmp["Colaborador"] = c
+            tmp.rename(columns={"_NOTAS_": "Notas"}, inplace=True)
             out.append(tmp)
-        plot_df = pd.concat(out, ignore_index=True)
 
-        fig = px.line(
-            plot_df.sort_values("DOW_NUM"),
-            x="DOW",
-            y="Notas",
-            color="Colaborador",
-            markers=True
-        )
-        fig.update_layout(
-            margin=dict(l=10,r=10,t=10,b=10),
-            legend_title_text="",
-            yaxis_title="Notas",
-            xaxis_title=""
-        )
+        plot_df = pd.concat(out, ignore_index=True).sort_values("DOW_NUM")
+
+        fig = px.line(plot_df, x="DOW", y="Notas", color="Colaborador", markers=True)
+        fig.update_layout(margin=dict(l=10,r=10,t=10,b=10), legend_title_text="", yaxis_title="Notas", xaxis_title="")
         st.plotly_chart(fig, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -397,17 +497,16 @@ with col_right:
         st.markdown(f'<div class="badge">{total_ano}<div class="small">TOTAL</div></div>', unsafe_allow_html=True)
 
     with top_row[1]:
-        if acumulado_ano.empty:
-            st.info("Envie o arquivo de produtividade para montar o acumulado.")
+        if df_ano.empty:
+            st.info("Sem dados no ano selecionado.")
         else:
-            pie = acumulado_ano.groupby("Colaborador", as_index=False)["Notas"].sum()
-            pie = pie.sort_values("Notas", ascending=False)
+            pie = df_ano.groupby("_COLAB_", as_index=False)["_NOTAS_"].sum().sort_values("_NOTAS_", ascending=False)
+            pie.rename(columns={"_COLAB_": "Colaborador", "_NOTAS_": "Notas"}, inplace=True)
             fig2 = px.pie(pie, values="Notas", names="Colaborador", hole=0.60)
             fig2.update_layout(margin=dict(l=10,r=10,t=10,b=10), legend_title_text="")
             st.plotly_chart(fig2, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-
 
 # ======================================================
 # DEMANDAS (3 tabelas)
@@ -416,51 +515,41 @@ st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 st.markdown("<div class='card'>", unsafe_allow_html=True)
 st.markdown(f"<div class='section-title'>DEMANDAS DE APOIO (SEMANA)</div><div class='small'>{periodo_str}</div>", unsafe_allow_html=True)
 
+base = pd.DataFrame({"Data": pd.to_datetime([week_start + pd.Timedelta(days=i) for i in range(5)])})
+base["DOW"] = base["Data"].dt.weekday.map(DOW_PT)
+
+df_dem_semana = df[(df[COL_DATA] >= week_start) & (df[COL_DATA] <= week_end)].copy()
+df_dem_semana["Data"] = df_dem_semana[COL_DATA].dt.normalize()
+
+cols = st.columns(3, gap="medium")
+color_classes = ["head-blue", "head-green", "head-yellow"]
+rendered = {}
+
 if len(people_tables) == 0:
-    st.info("Selecione ao menos 1 colaborador para exibir as tabelas.")
+    st.info("Selecione os colaboradores das tabelas.")
 else:
-    # monta tabela base com SEG..SEX
-    base = pd.DataFrame({"Data": pd.to_datetime(week_days)})
-    base["DOW"] = base["Data"].dt.weekday.map(DOW_PT)
-    base = base[base["Data"].dt.weekday.between(0,4)].copy()
-
-    cols = st.columns(3, gap="medium")
-    color_classes = ["head-blue", "head-green", "head-yellow"]
-
-    demandas_semana = dem[(dem["Data"] >= week_start) & (dem["Data"] <= week_end)].copy() if not dem.empty else dem.copy()
-
-    rendered = {}
     for i in range(min(3, len(people_tables))):
         nome = safe_upper(people_tables[i])
         df_show = base.copy()
-        if not demandas_semana.empty:
-            tmp = demandas_semana[demandas_semana["Colaborador"] == nome][["Data","Demanda"]].copy()
-            tmp = tmp.groupby("Data", as_index=False)["Demanda"].agg(lambda x: " | ".join([t for t in x if str(t).strip()]))
+
+        tmp = df_dem_semana[df_dem_semana["_COLAB_"] == nome][["Data","_DEMANDA_"]].copy()
+        if not tmp.empty:
+            tmp = tmp.groupby("Data", as_index=False)["_DEMANDA_"].agg(
+                lambda x: " | ".join([t for t in x if str(t).strip() and str(t).strip() != "-"])
+            )
+            tmp.rename(columns={"_DEMANDA_": "Demanda"}, inplace=True)
             df_show = df_show.merge(tmp, on="Data", how="left")
+
         df_show["Demanda"] = df_show["Demanda"].fillna("-")
         rendered[nome] = df_show
 
         with cols[i]:
-            html = html_demanda_table(f"DEMANDA DE APOIO - {nome}", color_classes[i], df_show)
-            st.markdown(html, unsafe_allow_html=True)
-
-    # se selecionaram mais de 3, mostra extra abaixo
-    if len(people_tables) > 3:
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-        st.caption("Colaboradores extras selecionados (abaixo):")
-        for nome in people_tables[3:]:
-            nome = safe_upper(nome)
-            df_show = base.copy()
-            if not demandas_semana.empty:
-                tmp = demandas_semana[demandas_semana["Colaborador"] == nome][["Data","Demanda"]].copy()
-                tmp = tmp.groupby("Data", as_index=False)["Demanda"].agg(lambda x: " | ".join([t for t in x if str(t).strip()]))
-                df_show = df_show.merge(tmp, on="Data", how="left")
-            df_show["Demanda"] = df_show["Demanda"].fillna("-")
-            rendered[nome] = df_show
-            st.dataframe(df_show, use_container_width=True, hide_index=True)
+            st.markdown(
+                html_demanda_table(f"DEMANDA DE APOIO - {nome}", color_classes[i], df_show),
+                unsafe_allow_html=True
+            )
 
 st.markdown("</div>", unsafe_allow_html=True)
-
 
 # ======================================================
 # EXPORTS
@@ -469,28 +558,29 @@ st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 st.markdown("<div class='card'>", unsafe_allow_html=True)
 st.markdown("<div class='section-title'>EXPORTAR RELATÓRIO</div>", unsafe_allow_html=True)
 
-# Dataframes para export
 resumo_df = pd.DataFrame([{
     "Semana_inicio": week_start.strftime("%d/%m/%Y"),
     "Semana_fim": week_end.strftime("%d/%m/%Y"),
     "Ano_acumulado": int(ano_acumulado),
     "Total_semanal": total_semanal,
     "Total_ano": total_ano,
+    "URL_BASE": URL_BASE
 }])
 
-prod_semana_export = prod_semana.copy()
+prod_semana_export = df_semana.copy()
 if not prod_semana_export.empty:
-    prod_semana_export = prod_semana_export[["Data","DOW","Colaborador","Notas"]].sort_values(["Data","Colaborador"])
-    prod_semana_export["Data"] = prod_semana_export["Data"].dt.strftime("%d/%m/%Y")
+    prod_semana_export = prod_semana_export[[COL_DATA, "DOW", "_COLAB_", "_NOTAS_"]].copy()
+    prod_semana_export.rename(columns={COL_DATA: "Data", "_COLAB_": "Colaborador", "_NOTAS_": "Notas"}, inplace=True)
+    prod_semana_export["Data"] = pd.to_datetime(prod_semana_export["Data"]).dt.strftime("%d/%m/%Y")
 
-dem_export = dem.copy()
+dem_export = df_dem_semana.copy()
 if not dem_export.empty:
-    dem_export = dem_export[(dem_export["Data"] >= week_start) & (dem_export["Data"] <= week_end)].copy()
-    dem_export["Data"] = dem_export["Data"].dt.strftime("%d/%m/%Y")
+    dem_export = dem_export[[COL_DATA, "_COLAB_", "_DEMANDA_"]].copy()
+    dem_export.rename(columns={COL_DATA: "Data", "_COLAB_": "Colaborador", "_DEMANDA_": "Demanda"}, inplace=True)
+    dem_export["Data"] = pd.to_datetime(dem_export["Data"]).dt.strftime("%d/%m/%Y")
 
-acum_export = acumulado_ano.copy()
-if not acum_export.empty:
-    acum_export = acum_export.groupby("Colaborador", as_index=False)["Notas"].sum().sort_values("Notas", ascending=False)
+acum_export = df_ano.groupby("_COLAB_", as_index=False)["_NOTAS_"].sum().sort_values("_NOTAS_", ascending=False)
+acum_export.rename(columns={"_COLAB_": "Colaborador", "_NOTAS_": "Notas"}, inplace=True)
 
 c1, c2 = st.columns(2, gap="medium")
 
@@ -510,19 +600,13 @@ with c1:
     )
 
 with c2:
-    # PDF com tabelas (sem gráficos)
-    demandas_tables = {}
-    if "rendered" in locals():
-        for k, dfv in rendered.items():
-            demandas_tables[k] = dfv.copy()
-
     pdf_bytes = make_pdf_bytes(
-        title="TORPEDO PRODUTIVIDADE SEMANAL",
+        title="TORPEDO SEMANAL",
         periodo=periodo_str,
         total_semanal=total_semanal,
         total_ano=total_ano,
-        prod_semana_table=(prod_semana_export if not prod_semana_export.empty else pd.DataFrame(columns=["Data","DOW","Colaborador","Notas"])),
-        demandas_tables=(demandas_tables if demandas_tables else {})
+        prod_semana_table=prod_semana_export if not prod_semana_export.empty else pd.DataFrame(),
+        demandas_tables=rendered if rendered else {}
     )
     st.download_button(
         "📄 Baixar PDF (Relatório)",
@@ -534,4 +618,4 @@ with c2:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-st.caption("⚠️ Observação crítica: se o seu time preenche manualmente e esquece dias, o gráfico pode enganar (picos artificiais). O ideal é padronizar: todo dia registrar 0 quando não houver atendimento.")
+st.caption("Observação: se sua base não tiver a coluna de DEMANDA/APOIO/OBS, as tabelas vão ficar com '-'.")
