@@ -4,3 +4,4 @@ plotly
 reportlab
 kaleido
 openpyxl
+requests
