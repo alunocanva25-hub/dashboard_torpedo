@@ -366,10 +366,94 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
 
 
 # ======================================================
-# LOGIN (centralizado + inputs dentro do card)
+# LOGIN (layout igual ao print)
 # ======================================================
 def tela_login():
     st.markdown("""
+    <style>
+      .login-wrap{
+        min-height: 100vh;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding: 18px;
+      }
+      .login-shell{
+        width: min(980px, 96vw);
+        border-radius: 26px;
+        overflow: hidden;
+        border: 2px solid rgba(10,40,70,0.25);
+        box-shadow: 0 16px 40px rgba(0,0,0,0.22);
+        background: rgba(255,255,255,0.40);
+        backdrop-filter: blur(8px);
+      }
+      .login-header{
+        padding: 22px 22px 18px 22px;
+        background: #2f6f97;
+        color: white;
+      }
+      .login-header .h1{
+        font-size: 34px;
+        font-weight: 950;
+        letter-spacing: .2px;
+      }
+      .login-header .h2{
+        margin-top: 4px;
+        font-size: 18px;
+        font-weight: 800;
+        opacity: .95;
+      }
+
+      .login-body{
+        padding: 18px 22px 22px 22px;
+        background: rgba(255,255,255,0.22);
+      }
+
+      /* inputs escuros */
+      .login-body [data-testid="stTextInput"] label{
+        display:none !important;
+      }
+      .login-body [data-testid="stTextInput"] input{
+        border-radius: 8px !important;
+        border: 2px solid rgba(10,40,70,0.25) !important;
+        background: rgba(20,20,25,0.88) !important;
+        padding: 18px 16px !important;
+        font-weight: 900 !important;
+        color: #ffffff !important;
+        font-size: 22px !important;
+      }
+      .login-body [data-testid="stTextInput"] input::placeholder{
+        color: rgba(255,255,255,0.65) !important;
+        font-weight: 900 !important;
+      }
+      .login-body [data-testid="stTextInput"] input:focus{
+        border-color: rgba(255,255,255,0.55) !important;
+        box-shadow: 0 0 0 4px rgba(47,111,151,0.25) !important;
+      }
+
+      /* botões estilo da imagem */
+      .login-btns div.stButton > button{
+        width: 100%;
+        border-radius: 10px !important;
+        border: 2px solid rgba(10,40,70,0.22) !important;
+        background: rgba(255,255,255,0.35) !important;
+        color: #0b2b45 !important;
+        font-weight: 950 !important;
+        font-size: 22px !important;
+        padding: 14px 12px !important;
+      }
+      .login-btns div.stButton > button:hover{
+        background: rgba(255,255,255,0.55) !important;
+      }
+
+      .login-note{
+        margin-top: 10px;
+        font-size: 12px;
+        font-weight: 900;
+        color: rgba(11,43,69,0.85);
+      }
+    </style>
+
     <div class="login-wrap">
       <div class="login-shell">
         <div class="login-header">
@@ -377,56 +461,18 @@ def tela_login():
           <div class="h2">Torpedo Semanal • Produtividade</div>
         </div>
         <div class="login-body">
-          <div class="login-chip">✅ Segurança via <b>st.secrets</b></div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <style>
-    .login-body [data-testid="stTextInput"] label{
-      font-weight: 900 !important;
-      color: rgba(11,43,69,0.95) !important;
-      font-size: 12px !important;
-      text-transform: uppercase;
-      letter-spacing: .3px;
-    }
-    .login-body [data-testid="stTextInput"] input{
-      border-radius: 14px !important;
-      border: 2px solid rgba(10,40,70,0.18) !important;
-      background: rgba(255,255,255,0.65) !important;
-      padding: 12px 12px !important;
-      font-weight: 900 !important;
-      color: #0b2b45 !important;
-    }
-    .login-body [data-testid="stTextInput"] input:focus{
-      border-color: rgba(31,119,180,0.75) !important;
-      box-shadow: 0 0 0 4px rgba(31,119,180,0.15) !important;
-    }
-    .login-body div.stButton > button{
-      width: 100%;
-      border-radius: 14px !important;
-      border: 2px solid rgba(10,40,70,0.18) !important;
-      background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92)) !important;
-      color: #fff !important;
-      font-weight: 950 !important;
-      padding: .6rem .8rem !important;
-    }
-    .login-body div.stButton > button:hover{ filter: brightness(1.05); }
-    .login-body .btn-secondary div.stButton > button{
-      background: rgba(255,255,255,0.55) !important;
-      color:#0b2b45 !important;
-      font-weight: 950 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Layout: inputs à esquerda / botões à direita
+    left, right = st.columns([3.2, 1.2], gap="large")
 
-    usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário")
-    senha = st.text_input("Senha", type="password", key="login_senha", placeholder="Digite sua senha")
+    with left:
+        usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
+        senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
+    with right:
+        st.markdown('<div class="login-btns">', unsafe_allow_html=True)
         entrar = st.button("Entrar")
-    with c2:
-        st.markdown('<div class="btn-secondary">', unsafe_allow_html=True)
         limpar = st.button("Limpar")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -446,20 +492,18 @@ def tela_login():
             st.error("Secrets não configurado. Verifique [auth] usuario/senha no Streamlit Cloud.")
 
     st.markdown("""
-        <div class="small-muted" style="margin-top:10px;">
-          Para trocar usuário/senha: <b>Settings → Secrets</b> no Streamlit Cloud.
-        </div>
+          <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
+
 
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if not st.session_state["logado"]:
     tela_login()
     st.stop()
-
 
 # ======================================================
 # TOPO
