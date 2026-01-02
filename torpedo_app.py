@@ -366,18 +366,20 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
 
 
 # ======================================================
-# LOGIN (layout igual ao print)
+# LOGIN (centralizado, mais próximo do topo)
 # ======================================================
 def tela_login():
     st.markdown("""
     <style>
+      /* ===== WRAPPER GERAL ===== */
       .login-wrap{
-        min-height: 100vh;
+        /* 🔧 Ajuste AQUI a distância do topo */
+        padding-top: 80px;          /* ↓ diminua para subir / ↑ aumente para descer */
         display:flex;
-        align-items:center;
         justify-content:center;
-        padding: 18px;
       }
+
+      /* ===== CARD PRINCIPAL ===== */
       .login-shell{
         width: min(980px, 96vw);
         border-radius: 26px;
@@ -387,70 +389,70 @@ def tela_login():
         background: rgba(255,255,255,0.40);
         backdrop-filter: blur(8px);
       }
+
+      /* ===== CABEÇALHO AZUL ===== */
       .login-header{
-        padding: 22px 22px 18px 22px;
+        padding: 22px;
         background: #2f6f97;
         color: white;
       }
       .login-header .h1{
         font-size: 34px;
         font-weight: 950;
-        letter-spacing: .2px;
       }
       .login-header .h2{
-        margin-top: 4px;
         font-size: 18px;
         font-weight: 800;
         opacity: .95;
       }
 
+      /* ===== CORPO ===== */
       .login-body{
-        padding: 18px 22px 22px 22px;
+        padding: 26px 30px 30px 30px;
         background: rgba(255,255,255,0.22);
       }
 
-      /* inputs escuros */
+      /* ===== INPUTS ===== */
       .login-body [data-testid="stTextInput"] label{
         display:none !important;
       }
       .login-body [data-testid="stTextInput"] input{
+        width: 100%;
         border-radius: 8px !important;
         border: 2px solid rgba(10,40,70,0.25) !important;
         background: rgba(20,20,25,0.88) !important;
         padding: 18px 16px !important;
         font-weight: 900 !important;
-        color: #ffffff !important;
         font-size: 22px !important;
+        color: #ffffff !important;
       }
-      .login-body [data-testid="stTextInput"] input::placeholder{
-        color: rgba(255,255,255,0.65) !important;
-        font-weight: 900 !important;
-      }
-      .login-body [data-testid="stTextInput"] input:focus{
-        border-color: rgba(255,255,255,0.55) !important;
-        box-shadow: 0 0 0 4px rgba(47,111,151,0.25) !important;
+      .login-body input::placeholder{
+        color: rgba(255,255,255,0.65);
       }
 
-      /* botões estilo da imagem */
+      /* ===== BOTÕES ===== */
       .login-btns div.stButton > button{
         width: 100%;
-        border-radius: 10px !important;
-        border: 2px solid rgba(10,40,70,0.22) !important;
-        background: rgba(255,255,255,0.35) !important;
-        color: #0b2b45 !important;
-        font-weight: 950 !important;
-        font-size: 22px !important;
-        padding: 14px 12px !important;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        border: 2px solid rgba(10,40,70,0.22);
+        background: rgba(255,255,255,0.35);
+        color: #0b2b45;
+        font-weight: 950;
+        font-size: 20px;
+        padding: 14px;
       }
       .login-btns div.stButton > button:hover{
-        background: rgba(255,255,255,0.55) !important;
+        background: rgba(255,255,255,0.55);
       }
 
+      /* ===== RODAPÉ ===== */
       .login-note{
         margin-top: 10px;
         font-size: 12px;
         font-weight: 900;
         color: rgba(11,43,69,0.85);
+        text-align: center;
       }
     </style>
 
@@ -463,48 +465,75 @@ def tela_login():
         <div class="login-body">
     """, unsafe_allow_html=True)
 
-    # Layout: inputs à esquerda / botões à direita
-    left, right = st.columns([3.2, 1.2], gap="large")
+    # ==================================================
+    # LAYOUT: inputs + botões CENTRALIZADOS
+    # ==================================================
+    # 🔧 Ajuste os valores [2.5, 1.2] para mudar proporção
+    col_inputs, col_btns = st.columns([2.5, 1.2], gap="large")
 
-    with left:
-        usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
-        senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
+    # ===== INPUTS =====
+    with col_inputs:
+        usuario = st.text_input(
+            "",
+            key="login_usuario",
+            placeholder="Digite seu usuário"
+        )
+        senha = st.text_input(
+            "",
+            key="login_senha",
+            type="password",
+            placeholder="Digite sua senha"
+        )
 
-    with right:
+    # ===== BOTÕES =====
+    with col_btns:
         st.markdown('<div class="login-btns">', unsafe_allow_html=True)
         entrar = st.button("Entrar")
         limpar = st.button("Limpar")
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ==================================================
+    # AÇÕES DOS BOTÕES
+    # ==================================================
     if limpar:
+        # 🔧 limpa os campos manualmente
         st.session_state["login_usuario"] = ""
         st.session_state["login_senha"] = ""
         st.rerun()
 
     if entrar:
         try:
-            if usuario == st.secrets["auth"]["usuario"] and senha == st.secrets["auth"]["senha"]:
+            # 🔐 valida via secrets
+            if (
+                usuario == st.secrets["auth"]["usuario"]
+                and senha == st.secrets["auth"]["senha"]
+            ):
                 st.session_state["logado"] = True
                 st.rerun()
             else:
                 st.error("Usuário ou senha inválidos")
         except Exception:
-            st.error("Secrets não configurado. Verifique [auth] usuario/senha no Streamlit Cloud.")
+            st.error("Secrets não configurado no Streamlit Cloud.")
 
     st.markdown("""
-          <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
+          <div class="login-note">
+            ✅ Segurança via <b>st.secrets</b>
+          </div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
 
+# ======================================================
+# CONTROLE DE SESSÃO
+# ======================================================
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
+
 if not st.session_state["logado"]:
     tela_login()
     st.stop()
-
 # ======================================================
 # TOPO
 # ======================================================
