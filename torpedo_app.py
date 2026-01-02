@@ -719,62 +719,80 @@ row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
 # ---- 1) BARRAS DIÁRIO (Procedente/Improcedente)
 with row_main[0]:
-    st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — PROCEDENTE x IMPROCEDENTE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — POR COLABORADOR (SEG–SEX)</div>', unsafe_allow_html=True)
 
     if df_semana.empty:
         st.info("Sem dados no período selecionado.")
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
-        if not COL_RESULTADO:
-            st.warning("Não encontrei coluna RESULTADO/STATUS na base. Vou mostrar Total por dia (sem separação).")
-            tmp = (
-                df_semana.groupby(["DOW_NUM", "DOW"], as_index=False)["_QTD_"]
-                .sum()
-                .rename(columns={"_QTD_": "Total"})
-                .sort_values("DOW_NUM")
+        # opcional: escolher quais colaboradores aparecem no gráfico
+        colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist())
+
+        cfa, cfb = st.columns([1.7, 1.0], gap="small")
+        with cfa:
+            colabs_sel = st.multiselect(
+                "Colaboradores (para o gráfico)",
+                options=colabs_disp,
+                default=colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp,
+                key="colabs_graf"
             )
-            fig_bar = px.bar(tmp, x="DOW", y="Total", text="Total", template="plotly_white")
-            fig_bar.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10))
-            st.plotly_chart(fig_bar, use_container_width=True)
+        with cfb:
+            modo_barra = st.selectbox("Visual", ["Lado a lado", "Empilhado"], index=0, key="modo_barra")
+
+        base = df_semana.copy()
+        if colabs_sel:
+            base = base[base["_COLAB_"].isin([str(x).upper().strip() for x in colabs_sel])].copy()
+
+        # agrega: colaborador x dia
+        tmp = (
+            base.groupby(["DOW_NUM", "DOW", "_COLAB_"], as_index=False)["_QTD_"]
+            .sum()
+            .rename(columns={"_QTD_": "Notas"})
+        )
+
+        # garante SEG–SEX aparecendo mesmo se tiver 0 (por colaborador)
+        dias_df = pd.DataFrame({"DOW_NUM":[0,1,2,3,4], "DOW":["SEG","TER","QUA","QUI","SEX"]})
+        if colabs_sel:
+            col_df = pd.DataFrame({"_COLAB_": [str(x).upper().strip() for x in colabs_sel]})
         else:
-            base = df_semana.copy()
+            col_df = pd.DataFrame({"_COLAB_": colabs_disp})
 
-            # Classifica
-            base["_CLASSE_"] = "OUTROS"
-            base.loc[base["_RES_"].str.contains("PROCED", na=False), "_CLASSE_"] = "PROCEDENTE"
-            base.loc[base["_RES_"].str.contains("IMPROCED", na=False), "_CLASSE_"] = "IMPROCEDENTE"
+        grid = dias_df.assign(_k=1).merge(col_df.assign(_k=1), on="_k").drop(columns="_k")
+        tmp = grid.merge(tmp, on=["DOW_NUM","DOW","_COLAB_"], how="left").fillna({"Notas":0})
+        tmp["Notas"] = tmp["Notas"].astype(int)
+        tmp = tmp.sort_values(["DOW_NUM", "_COLAB_"])
 
-            base = base[base["_CLASSE_"].isin(["PROCEDENTE", "IMPROCEDENTE"])].copy()
+        barmode = "group" if modo_barra == "Lado a lado" else "stack"
 
-            # conta por dia/classe
-            tmp = (
-                base.groupby(["DOW_NUM", "DOW", "_CLASSE_"], as_index=False)["_QTD_"]
-                .sum()
-                .rename(columns={"_QTD_": "Notas"})
-            )
+        fig_bar = px.bar(
+            tmp,
+            x="DOW",
+            y="Notas",
+            color="_COLAB_",
+            barmode=barmode,
+            text="Notas",
+            template="plotly_white",
+            category_orders={"DOW": ["SEG","TER","QUA","QUI","SEX"]},
+        )
+        fig_bar.update_layout(
+            height=320,
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend_title_text="Colaborador"
+        )
+        fig_bar.update_traces(textposition="outside", cliponaxis=False)
 
-            # garante seg-sex + classes
-            base_days = pd.DataFrame({"DOW_NUM":[0,1,2,3,4], "DOW":["SEG","TER","QUA","QUI","SEX"]})
-            classes = ["PROCEDENTE", "IMPROCEDENTE"]
-            grid = base_days.assign(_k=1).merge(pd.DataFrame({"_CLASSE_":classes}).assign(_k=1), on="_k").drop(columns="_k")
-            tmp = grid.merge(tmp, on=["DOW_NUM","DOW","_CLASSE_"], how="left").fillna({"Notas":0})
-            tmp["Notas"] = tmp["Notas"].astype(int)
+        # total semanal (somatório do gráfico)
+        total_graf = int(tmp["Notas"].sum())
+        fig_bar.add_annotation(
+            xref="paper", yref="paper",
+            x=0.99, y=1.12,
+            text=f"<b>TOTAL SEMANAL: {fmt_int(total_graf)}</b>",
+            showarrow=False,
+            align="right"
+        )
 
-            # barras agrupadas
-            fig_bar = px.bar(
-                tmp.sort_values("DOW_NUM"),
-                x="DOW",
-                y="Notas",
-                color="_CLASSE_",
-                barmode="group",
-                text="Notas",
-                template="plotly_white",
-                category_orders={"DOW": ["SEG","TER","QUA","QUI","SEX"], "_CLASSE_": ["PROCEDENTE","IMPROCEDENTE"]},
-                color_discrete_map={"PROCEDENTE":"#2e7d32", "IMPROCEDENTE":"#c62828"},
-            )
-            fig_bar.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10), legend_title_text="")
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.plotly_chart(fig_bar, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ---- 2) DONUT ACUMULADO POR COLABORADOR (ANO) — igual a imagem
 with row_main[1]:
