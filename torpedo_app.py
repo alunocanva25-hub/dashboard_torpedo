@@ -25,7 +25,6 @@ st.markdown("""
   --bg:#6fa6d6;
   --card:#b9d3ee;
   --ink:#0b2b45;
-  --ink2:#0B2A47;
   --red:#9b0d0d;
   --stroke: rgba(10,40,70,0.30);
   --stroke2: rgba(10,40,70,0.22);
@@ -187,9 +186,7 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
 }
 .login-header .h1{ font-size: 18px; font-weight: 950; letter-spacing:.3px; }
 .login-header .h2{ font-size: 12px; font-weight: 800; opacity:.9; margin-top: 4px; }
-.login-body{
-  padding: 16px 18px 18px 18px;
-}
+.login-body{ padding: 16px 18px 18px 18px; }
 .login-chip{
   display:inline-flex;
   align-items:center;
@@ -206,6 +203,9 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
 .small-muted{ font-size: 12px; font-weight: 800; color: rgba(11,43,69,0.85); }
 </style>
 """, unsafe_allow_html=True)
+
+def fmt_int(n: int) -> str:
+    return f"{int(n):,}".replace(",", ".")
 
 # ======================================================
 # LOGIN (centralizado + moderno)
@@ -248,7 +248,7 @@ def tela_login():
 
     st.markdown("""
         <div class="small-muted" style="margin-top:10px;">
-          Se precisar trocar senha/usuário, ajuste em <b>Secrets</b> do Streamlit Cloud.
+          Para trocar usuário/senha: <b>Settings → Secrets</b> no Streamlit Cloud.
         </div>
         </div>
       </div>
@@ -270,12 +270,12 @@ st.markdown("""
     <div class="brand-badge">3C</div>
     <div class="brand-text">
       <div class="t1">TORPEDO SEMANAL – PRODUTIVIDADE</div>
-      <div class="t2">Gráfico por colaborador + 3 tabelas (seg–sex) no padrão da referência</div>
+      <div class="t2">Gráfico por colaborador + 3 tabelas (seg–sex)</div>
     </div>
   </div>
   <div class="right-note">
     BASE DRIVE (XLSX)<br>
-    <small>Colab = H • Notas = B • Tipo = C • Localidade = D • Data = E</small>
+    <small>Colab = H • Notas = B (ID) • Tipo = C • Localidade = D • Data = E</small>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -358,21 +358,20 @@ def html_torpedo_table(title: str, head_class: str, df_rows: pd.DataFrame) -> st
     </div>
     """
 
+def normalize_colab_series(s: pd.Series) -> pd.Series:
+    s = s.astype(str).str.upper().str.strip()
+    return s.replace({"": None, "NAN": None, "NONE": None, "NULL": None, "-": None})
+
 def compor_demanda_do_dia(g: pd.DataFrame) -> str:
-    # Sua base não tem "texto demanda", então sintetiza por TIPO + LOCALIDADE
+    # como não existe coluna "demanda", faz resumo por tipo + localidade
     tipos_top = g["_TIPO_"].value_counts().head(2).index.tolist()
-    locs_top = g["_LOCAL_"].value_counts().head(2).index.tolist()
+    locs_top  = g["_LOCAL_"].value_counts().head(2).index.tolist()
     parts = []
     if tipos_top:
         parts.append("TIPO: " + ", ".join([str(x) for x in tipos_top if str(x).strip()]))
     if locs_top:
         parts.append("LOCAL: " + ", ".join([str(x) for x in locs_top if str(x).strip()]))
     return " | ".join(parts) if parts else "-"
-
-def normalize_colab_series(s: pd.Series) -> pd.Series:
-    s = s.astype(str).str.upper().str.strip()
-    s = s.replace({"": None, "NAN": None, "NONE": None, "NULL": None, "-": None})
-    return s
 
 # ======================================================
 # BOTÃO ATUALIZAR BASE
@@ -401,7 +400,7 @@ except Exception as e:
 # MAPEAMENTO FIXO (B/C/D/E/H)
 # B=1 C=2 D=3 E=4 H=7
 # ======================================================
-COL_NOTAS = df.columns[1]   # B (NOTAS)
+COL_NOTAS = df.columns[1]   # B (NOTAS) -> normalmente ID da nota, NÃO somar!
 COL_TIPO  = df.columns[2]   # C (TIPO)
 COL_LOCAL = df.columns[3]   # D (LOCALIDADE)
 COL_DATA  = df.columns[4]   # E (DATA DA BAIXA)
@@ -414,33 +413,28 @@ df = df.dropna(subset=[COL_DATA]).copy()
 df["_COLAB_"] = normalize_colab_series(df[COL_COLAB])
 df["_TIPO_"]  = df[COL_TIPO].astype(str).str.upper().str.strip()
 df["_LOCAL_"] = df[COL_LOCAL].astype(str).str.upper().str.strip()
-df["_NOTAS_"] = pd.to_numeric(df[COL_NOTAS], errors="coerce").fillna(0).astype(int)
+df["_NOTA_ID_"] = df[COL_NOTAS].astype(str).str.strip()
+
+# ✅ CORREÇÃO DO TOTAL:
+# cada linha = 1 nota atendida (não somar o ID da nota)
+df["_QTD_"] = 1
 
 # ======================================================
 # SELETORES (Ano • Período • Calendário • Semana ISO)
 # ======================================================
 anos_disponiveis = sorted(df[COL_DATA].dropna().dt.year.unique().astype(int).tolist())
-ano_padrao = anos_disponiveis[-1] if anos_disponiveis else None
-
 c_sel1, c_sel2, c_sel3, c_sel4 = st.columns([1.0, 1.3, 2.2, 2.0], gap="medium")
 
 with c_sel1:
-    ano_sel = st.selectbox(
-        "Ano",
-        options=anos_disponiveis if anos_disponiveis else ["—"],
-        index=(len(anos_disponiveis) - 1) if anos_disponiveis else 0,
-        key="ano_sel",
-    )
+    ano_sel = st.selectbox("Ano", options=anos_disponiveis if anos_disponiveis else ["—"],
+                           index=(len(anos_disponiveis)-1) if anos_disponiveis else 0, key="ano_sel")
     if ano_sel == "—":
         ano_sel = None
 
 with c_sel2:
-    modo_periodo = st.segmented_control(
-        "Período",
-        options=["Semanal", "Mensal"],
-        default=st.session_state.get("modo_periodo", "Semanal"),
-        key="modo_periodo",
-    )
+    modo_periodo = st.segmented_control("Período", options=["Semanal", "Mensal"],
+                                        default=st.session_state.get("modo_periodo", "Semanal"),
+                                        key="modo_periodo")
 
 df_ano = df if ano_sel is None else df[df[COL_DATA].dt.year == int(ano_sel)].copy()
 ano_txt = str(ano_sel) if ano_sel else "—"
@@ -456,9 +450,7 @@ with c_sel3:
     data_ini, data_fim = st.date_input(
         "Filtro por calendário (início/fim)",
         value=(st.session_state.get("data_ini", _min_d), st.session_state.get("data_fim", _max_d)),
-        min_value=_min_d,
-        max_value=_max_d,
-        key="range_calendario",
+        min_value=_min_d, max_value=_max_d, key="range_calendario"
     )
 
 with c_sel4:
@@ -478,9 +470,9 @@ if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and ano_se
     except ValueError:
         st.warning("Semana inválida para este ano (ISO). Usando o filtro por calendário.")
 
-# aplica filtro calendário (inclusive)
+# filtro calendário (inclusive)
 df_periodo = df_ano.copy()
-if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
+if not df_periodo.empty:
     _dini = pd.to_datetime(data_ini)
     _dfim = pd.to_datetime(data_fim) + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
     df_periodo = df_periodo[(df_periodo[COL_DATA] >= _dini) & (df_periodo[COL_DATA] <= _dfim)].copy()
@@ -488,8 +480,8 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 # ======================================================
 # FILTROS (Localidade / Tipo)
 # ======================================================
-locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip() != ""])
-tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip() != ""])
+locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
+tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
 
 f1, f2 = st.columns([1.4, 1.4], gap="medium")
 with f1:
@@ -504,7 +496,7 @@ if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
 
 # ======================================================
-# RANGE seg–sex + acumulados
+# RANGE seg–sex + acumulados (usando _QTD_)
 # ======================================================
 if modo_periodo == "Semanal":
     mon = monday_of_week(data_ini)
@@ -519,29 +511,23 @@ df_semana["DOW_NUM"] = df_semana[COL_DATA].dt.weekday
 df_semana["DOW"] = df_semana["DOW_NUM"].map(DOW_PT)
 df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]  # seg–sex
 
-total_periodo = int(df_semana["_NOTAS_"].sum())
-total_ano = int(df[df[COL_DATA].dt.year == int(ano_sel)]["_NOTAS_"].sum()) if ano_sel else int(df["_NOTAS_"].sum())
+total_periodo = int(df_semana["_QTD_"].sum())
+total_ano = int(df[df[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df["_QTD_"].sum())
 
 # ======================================================
-# Colaboradores no gráfico (MOSTRAR TODOS)
+# Colaboradores no gráfico (TODOS)
 # ======================================================
-collabs_all = (
-    normalize_colab_series(df_filtro["_COLAB_"])
-    .dropna()
-    .unique()
-    .tolist()
-)
+collabs_all = normalize_colab_series(df_filtro["_COLAB_"]).dropna().unique().tolist()
 collabs_all = sorted(collabs_all)
 
 top3_semana = []
 if not df_semana.empty:
     top3_semana = (
-        df_semana.groupby("_COLAB_")["_NOTAS_"]
+        df_semana.groupby("_COLAB_")["_QTD_"]
         .sum()
         .sort_values(ascending=False)
         .head(3)
-        .index
-        .tolist()
+        .index.tolist()
     )
 
 col_g1, col_g2 = st.columns([2.4, 1.0], gap="medium")
@@ -553,24 +539,24 @@ with col_g2:
     )
 
 # ======================================================
-# Gráfico de linha (seg–sex) por colaborador
+# Gráfico de linha (seg–sex) por colaborador (usando _QTD_)
 # ======================================================
 def grafico_linha_colab(df_sem: pd.DataFrame, selected: list[str]):
     if df_sem.empty or not selected:
         return None
 
-    base_days = pd.DataFrame({"DOW_NUM": [0, 1, 2, 3, 4], "DOW": ["SEG", "TER", "QUA", "QUI", "SEX"]})
+    base_days = pd.DataFrame({"DOW_NUM": [0,1,2,3,4], "DOW": ["SEG","TER","QUA","QUI","SEX"]})
     out = []
     for c in selected:
         tmp = (
             df_sem[df_sem["_COLAB_"] == c]
-            .groupby(["DOW_NUM", "DOW"], as_index=False)["_NOTAS_"]
+            .groupby(["DOW_NUM", "DOW"], as_index=False)["_QTD_"]
             .sum()
         )
-        tmp = base_days.merge(tmp, on=["DOW_NUM", "DOW"], how="left")
-        tmp["_NOTAS_"] = tmp["_NOTAS_"].fillna(0).astype(int)
+        tmp = base_days.merge(tmp, on=["DOW_NUM","DOW"], how="left")
+        tmp["_QTD_"] = tmp["_QTD_"].fillna(0).astype(int)
         tmp["Colaborador"] = c
-        tmp = tmp.rename(columns={"_NOTAS_": "Notas"})
+        tmp = tmp.rename(columns={"_QTD_": "Notas"})
         out.append(tmp)
 
     plot_df = pd.concat(out, ignore_index=True).sort_values("DOW_NUM")
@@ -597,20 +583,18 @@ with col_g2:
         <div class="card">
           <div class="card-title">RESUMO</div>
           <div class="kpi-row">
-            <div class="kpi-big">{str(total_periodo)}</div>
+            <div class="kpi-big">{fmt_int(total_periodo)}</div>
             <div class="kpi-mini">
               <div class="lbl">TOTAL PERÍODO</div>
-              <div class="val">{str(total_periodo)}</div>
+              <div class="val">{fmt_int(total_periodo)}</div>
             </div>
           </div>
           <div style="margin-top:10px; font-weight:950; color:#0b2b45;">
             {periodo_txt}
           </div>
-          <div style="margin-top:10px; display:flex; justify-content:space-between; gap:8px;">
-            <div style="flex:1; background:rgba(255,255,255,0.35); border:1px solid rgba(10,40,70,0.22); border-radius:12px; padding:10px;">
-              <div style="font-weight:900; color:#0b2b45; font-size:12px;">TOTAL NO ANO</div>
-              <div style="font-weight:950; color:#9b0d0d; font-size:22px; line-height:1.0;">{str(total_ano)}</div>
-            </div>
+          <div style="margin-top:10px; background:rgba(255,255,255,0.35); border:1px solid rgba(10,40,70,0.22); border-radius:12px; padding:10px;">
+            <div style="font-weight:900; color:#0b2b45; font-size:12px;">TOTAL NO ANO</div>
+            <div style="font-weight:950; color:#9b0d0d; font-size:22px; line-height:1.0;">{fmt_int(total_ano)}</div>
           </div>
         </div>
         """,
@@ -619,29 +603,36 @@ with col_g2:
 
 # ======================================================
 # 3 TABELAS (seg–sex) — estilo torpedo
+# ✅ FIX DO KeyError: agregação segura com reset_index(name="Demanda")
 # ======================================================
 st.markdown('<div class="card"><div class="card-title">TABELAS (3) — TORPEDO SEMANAL (SEG–SEX)</div>', unsafe_allow_html=True)
 
 base_days = pd.DataFrame({"Data": pd.to_datetime([week_start + pd.Timedelta(days=i) for i in range(5)])})
 base_days["DOW"] = base_days["Data"].dt.weekday.map(DOW_PT)
 
-pessoas = collabs_all[:]  # todos colaboradores (sem cortar)
+pessoas = collabs_all[:]  # todos colaboradores
 
 def tabela_para_colaborador(nome_colab: str) -> pd.DataFrame:
     df_c = df_semana[df_semana["_COLAB_"] == nome_colab].copy()
+    out = base_days.copy()
+
     if df_c.empty:
-        out = base_days.copy()
         out["Demanda"] = "-"
         return out
 
     df_c["Data"] = df_c[COL_DATA].dt.normalize()
-    agg = df_c.groupby("Data", as_index=False).apply(lambda g: compor_demanda_do_dia(g)).reset_index()
-    agg = agg.rename(columns={0: "Demanda"})[["Data", "Demanda"]]
-    out = base_days.merge(agg, on="Data", how="left")
+
+    # ✅ agrega texto por dia sem quebrar colunas
+    agg = (
+        df_c.groupby("Data")
+        .apply(lambda g: compor_demanda_do_dia(g))
+        .reset_index(name="Demanda")
+    )
+
+    out = out.merge(agg, on="Data", how="left")
     out["Demanda"] = out["Demanda"].fillna("-")
     return out
 
-# default das tabelas = top 3 do período (se tiver), senão primeiros 3 da lista completa
 top3_tbl = top3_semana[:] if len(top3_semana) == 3 else (pessoas[:3] if len(pessoas) >= 3 else pessoas)
 
 s1, s2, s3 = st.columns(3, gap="large")
