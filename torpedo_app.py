@@ -367,25 +367,21 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
 
 
 # ======================================================
-# LOGIN (centralizado e alinhado)
+# LOGIN (centralizado | botões lado a lado)
 # ======================================================
 def tela_login():
     st.markdown("""
     <style>
-      /* ==================================================
-         AJUSTE FINO DO LOGIN
-         ================================================== */
+      /* ===== ESPAÇO DO TOPO ===== */
+      .login-top-space { height: 18px; }  /* ajuste se quiser subir/descer */
 
-      /* 🔧 Distância do topo (se quiser mais alto, diminua) */
-      .login-top-space { height: 18px; }  /* ex: 8px / 18px / 30px */
-
-      /* Centraliza e limita largura total (card + campos) */
+      /* ===== FRAME CENTRAL ===== */
       .login-frame {
         width: min(980px, 96vw);
         margin: 0 auto;
       }
 
-      /* Card principal */
+      /* ===== CARD ===== */
       .login-card{
         border-radius: 26px;
         overflow: hidden;
@@ -395,7 +391,7 @@ def tela_login():
         backdrop-filter: blur(8px);
       }
 
-      /* Cabeçalho */
+      /* ===== CABEÇALHO ===== */
       .login-header{
         padding: 22px;
         background: #2f6f97;
@@ -411,52 +407,42 @@ def tela_login():
         opacity: .95;
       }
 
-      /* Corpo */
+      /* ===== CORPO ===== */
       .login-body{
-        padding: 18px 22px 18px 22px;
+        padding: 18px 22px;
         background: rgba(255,255,255,0.22);
       }
 
-      /* ==================================================
-         INPUTS (altura fixa para não "tortar")
-         ================================================== */
-      .login-body div[data-testid="stTextInput"] label{ display:none !important; }
+      /* ===== INPUTS ===== */
+      div[data-testid="stTextInput"] label{ display:none !important; }
 
-      .login-body div[data-testid="stTextInput"] input{
+      div[data-testid="stTextInput"] input{
         width: 100% !important;
+        height: 56px !important;
         border-radius: 10px !important;
         border: 2px solid rgba(10,40,70,0.25) !important;
         background: rgba(20,20,25,0.88) !important;
-        padding: 16px 16px !important;
+        padding: 0 16px !important;
         font-weight: 900 !important;
         font-size: 20px !important;
         color: #ffffff !important;
-
-        /* ✅ trava altura/box-model para alinhar sempre */
-        height: 56px !important;
         box-sizing: border-box !important;
       }
 
-      .login-body div[data-testid="stTextInput"] input::placeholder{
+      div[data-testid="stTextInput"] input::placeholder{
         color: rgba(255,255,255,0.65);
       }
 
-      /* ==================================================
-         BOTÕES (mesma altura dos inputs)
-         ================================================== */
+      /* ===== BOTÕES ===== */
       .login-btns div.stButton > button{
         width: 100%;
-        margin: 0 0 14px 0;
+        height: 56px;
         border-radius: 12px;
         border: 2px solid rgba(10,40,70,0.22);
         background: rgba(255,255,255,0.35);
         color: #0b2b45;
         font-weight: 950;
         font-size: 18px;
-
-        /* ✅ mesma altura do input */
-        height: 56px;
-        padding: 0 10px;
       }
 
       .login-btns div.stButton > button:hover{
@@ -464,7 +450,7 @@ def tela_login():
       }
 
       .login-note{
-        margin-top: 8px;
+        margin-top: 10px;
         font-size: 12px;
         font-weight: 900;
         color: rgba(11,43,69,0.85);
@@ -473,14 +459,11 @@ def tela_login():
     </style>
     """, unsafe_allow_html=True)
 
-    # 🔧 Espaço do topo (ajuste no CSS .login-top-space)
     st.markdown("<div class='login-top-space'></div>", unsafe_allow_html=True)
 
-    # ==================================================
-    # FRAME CENTRALIZADO (igual sua referência)
-    # ==================================================
-    left, mid, right = st.columns([1, 6, 1])
-    with mid:
+    # ===== CENTRALIZA =====
+    _, center, _ = st.columns([1, 6, 1])
+    with center:
         st.markdown("<div class='login-frame'>", unsafe_allow_html=True)
 
         st.markdown("""
@@ -492,21 +475,16 @@ def tela_login():
           <div class="login-body">
         """, unsafe_allow_html=True)
 
-        # ==================================================
-        # Inputs + Botões (lado a lado, alinhados)
-        # 🔧 se quiser botões mais largos: aumente o 2º número
-        # ==================================================
-        col_inputs, col_btns = st.columns([5.2, 1.2], gap="large")
+        # ===== INPUTS =====
+        usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
+        senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
-        with col_inputs:
-            usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
-            senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
-
-        with col_btns:
-            st.markdown("<div class='login-btns'>", unsafe_allow_html=True)
+        # ===== BOTÕES LADO A LADO =====
+        b1, b2 = st.columns(2, gap="medium")
+        with b1:
             entrar = st.button("Entrar")
+        with b2:
             limpar = st.button("Limpar")
-            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("""
             <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
@@ -514,7 +492,26 @@ def tela_login():
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)  # fecha login-frame
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ===== AÇÕES =====
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        try:
+            if (
+                st.session_state.get("login_usuario") == st.secrets["auth"]["usuario"]
+                and st.session_state.get("login_senha") == st.secrets["auth"]["senha"]
+            ):
+                st.session_state["logado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+        except Exception:
+            st.error("Secrets não configurado no Streamlit Cloud.")
 
     # ==================================================
     # AÇÕES
