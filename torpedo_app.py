@@ -117,7 +117,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 DOW_PT = {0: "SEG", 1: "TER", 2: "QUA", 3: "QUI", 4: "SEX", 5: "SÁB", 6: "DOM"}
 
 # ======================================================
-# LOGIN (IMPLANTADO + CENTRALIZADO)
+# LOGIN (CENTRAL)
 # ======================================================
 def tela_login():
     st.markdown("""
@@ -157,56 +157,20 @@ if not st.session_state["logado"]:
     st.stop()
 
 # ======================================================
-# FUNÇÕES (PADRÃO DO OUTRO PROJETO)
+# FUNÇÕES
 # ======================================================
-def normalizar_nome_col(c: str) -> str:
-    c = str(c).strip().upper()
-    c = re.sub(r"\s+", " ", c)
-    return c
-
-def achar_coluna(df: pd.DataFrame, candidatos: list[str]) -> str:
-    """
-    Encontra a primeira coluna que bata com qualquer item em candidatos,
-    comparando por 'contém' (tolerante) no nome normalizado.
-    """
-    cols_norm = {normalizar_nome_col(c): c for c in df.columns}
-    # match exato primeiro
-    for cand in candidatos:
-        cand_n = normalizar_nome_col(cand)
-        if cand_n in cols_norm:
-            return cols_norm[cand_n]
-    # match por "contém"
-    for cand in candidatos:
-        cand_n = normalizar_nome_col(cand)
-        for cnorm, coriginal in cols_norm.items():
-            if cand_n in cnorm:
-                return coriginal
-    raise ValueError(f"Não encontrei coluna. Tentei: {candidatos}")
+@st.cache_data(show_spinner=False, ttl=300)
+def carregar_base(url_drive_uc: str, sheet_name=0) -> pd.DataFrame:
+    r = requests.get(url_drive_uc, timeout=35)
+    r.raise_for_status()
+    content = io.BytesIO(r.content)
+    return pd.read_excel(content, sheet_name=sheet_name, engine="openpyxl")
 
 def validar_estrutura(df: pd.DataFrame):
     if df is None or df.empty:
         raise ValueError("A base carregou vazia. Verifique o link/arquivo.")
-    if len(df.columns) < 2:
-        raise ValueError("A base tem poucas colunas. Verifique se o XLSX está correto.")
-
-@st.cache_data(show_spinner=False, ttl=300)
-def carregar_base(url_drive_uc: str, sheet_name: str | int | None = 0) -> pd.DataFrame:
-    """
-    Baixa XLSX do Drive via link 'uc?id=' e lê com pandas.read_excel().
-    """
-    try:
-        r = requests.get(url_drive_uc, timeout=35)
-        r.raise_for_status()
-    except Exception as e:
-        raise RuntimeError(f"Falha ao baixar o XLSX do Drive: {e}")
-
-    content = io.BytesIO(r.content)
-    try:
-        df = pd.read_excel(content, sheet_name=sheet_name, engine="openpyxl")
-    except Exception as e:
-        raise RuntimeError(f"Falha ao ler XLSX (aba={sheet_name}): {e}")
-
-    return df
+    if len(df.columns) < 8:
+        raise ValueError("A base tem poucas colunas. Precisa ter pelo menos até a coluna H.")
 
 def week_monday(d: dt.date) -> dt.date:
     return d - dt.timedelta(days=d.weekday())
@@ -270,7 +234,7 @@ def make_pdf_bytes(title: str,
     story.append(Spacer(1, 6))
 
     if prod_semana_table is None or prod_semana_table.empty:
-        prod_semana_table = pd.DataFrame(columns=["Data", "DOW", "Colaborador", "Notas"])
+        prod_semana_table = pd.DataFrame(columns=["Data", "DOW", "Colaborador", "Notas", "Tipo", "Localidade"])
 
     tdata = [list(prod_semana_table.columns)] + prod_semana_table.values.tolist()
     t = Table(tdata, hAlign="LEFT")
@@ -280,7 +244,7 @@ def make_pdf_bytes(title: str,
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
         ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#AAB7C4")),
         ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F3F7FB")]),
-        ("FONTSIZE", (0,0), (-1,-1), 9),
+        ("FONTSIZE", (0,0), (-1,-1), 8),
         ("ALIGN", (0,0), (-1,0), "CENTER"),
     ]))
     story.append(t)
@@ -291,7 +255,6 @@ def make_pdf_bytes(title: str,
 
     for nome, df_dem in (demandas_tables or {}).items():
         story.append(Paragraph(f"<b>{nome}</b>", styles["Heading3"]))
-
         if df_dem is None or df_dem.empty:
             df_dem = pd.DataFrame(columns=["Data", "DOW", "Demanda"])
 
@@ -333,7 +296,7 @@ st.markdown(
     """
     <div class="titlebar">
       <div style="font-size:28px;font-weight:900;color:#0B2A47;">TORPEDO SEMANAL</div>
-      <div class="small">Base XLSX no Drive (igual ao outro projeto) + Login + Export PDF/Excel</div>
+      <div class="small">Base XLSX no Drive (uc?id=...) + Login + Export PDF/Excel</div>
     </div>
     """,
     unsafe_allow_html=True
@@ -352,8 +315,7 @@ with st.sidebar:
     st.divider()
     st.subheader("📦 Base (XLSX no Drive)")
     URL_BASE = st.text_input("URL (uc?id=...)", value=URL_BASE_DEFAULT)
-    sheet_name = st.text_input("Aba (nome ou índice)", value=str(DEFAULT_SHEET))
-
+    sheet_name_txt = st.text_input("Aba (nome ou índice)", value=str(DEFAULT_SHEET))
     load_btn = st.button("🔄 Carregar Base", use_container_width=True)
 
     st.divider()
@@ -380,70 +342,79 @@ if load_btn:
         if not URL_BASE.strip():
             raise ValueError("Informe a URL do Drive (uc?id=...).")
 
-        # sheet_name pode ser número (índice) ou string (nome)
-        sh = sheet_name.strip()
-        sh_arg = int(sh) if sh.isdigit() else sh
+        sh = sheet_name_txt.strip()
+        sheet_name = int(sh) if sh.isdigit() else sh
 
-        df = carregar_base(URL_BASE.strip(), sheet_name=sh_arg)
+        df = carregar_base(URL_BASE.strip(), sheet_name=sheet_name)
         validar_estrutura(df)
         st.success("Base carregada com sucesso.")
     except Exception as e:
         st.error(str(e))
 
-# se não clicou carregar ainda, tenta manter em cache via session
 if "df_base" not in st.session_state:
     st.session_state["df_base"] = None
 if df is not None:
     st.session_state["df_base"] = df
 
 df = st.session_state["df_base"]
-
 if df is None:
     st.info("Carregue a base no menu lateral para iniciar.")
     st.stop()
 
 # ======================================================
-# MAPEAR COLUNAS (Torpedo)
+# MAPEAMENTO FIXO POR COLUNA (A/B/C/D/H)
 # ======================================================
-# Mantive o padrão de achar_coluna. Ajuste os candidatos conforme sua base real.
-COL_DATA = achar_coluna(df, ["DATA", "DT", "DIA", "DATA ATENDIMENTO", "DT ATEND"])
-COL_COLAB = achar_coluna(df, ["COLABORADOR", "USUARIO", "RESPONSAVEL", "NOME", "COLAB"])
-COL_NOTAS = achar_coluna(df, ["NOTAS", "QTD", "QTDE", "QUANTIDADE", "TOTAL", "ATENDIDAS", "NOTAS ATENDIDAS", "NOTA"])
-# DEMANDA pode não existir; se não existir, o dashboard ainda roda
-COL_DEMANDA = None
-try:
-    COL_DEMANDA = achar_coluna(df, ["DEMANDA", "APOIO", "OBS", "OBSERVACAO", "DESCRICAO", "MOTIVO"])
-except Exception:
-    COL_DEMANDA = None
+# A = DATA (0) | B = NOTAS (1) | C = TIPO (2) | D = LOCALIDADE (3) | H = COLAB (7)
+COL_DATA  = df.columns[0]
+COL_NOTAS = df.columns[1]
+COL_TIPO  = df.columns[2]
+COL_LOCAL = df.columns[3]
+COL_COLAB = df.columns[7]
 
-# Normaliza
+df = df.copy()
 df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce", dayfirst=True)
 df = df.dropna(subset=[COL_DATA]).copy()
+
 df["_COLAB_"] = df[COL_COLAB].astype(str).str.upper().str.strip()
 df["_NOTAS_"] = pd.to_numeric(df[COL_NOTAS], errors="coerce").fillna(0).astype(int)
-
-if COL_DEMANDA:
-    df["_DEMANDA_"] = df[COL_DEMANDA].fillna("-").astype(str)
-else:
-    df["_DEMANDA_"] = "-"
+df["_TIPO_"]  = df[COL_TIPO].astype(str).str.upper().str.strip()
+df["_LOCAL_"] = df[COL_LOCAL].astype(str).str.upper().str.strip()
 
 # ======================================================
-# FILTROS / CÁLCULOS
+# FILTROS (LOCALIDADE / TIPO)
 # ======================================================
-df_semana = df[(df[COL_DATA] >= week_start) & (df[COL_DATA] <= week_end)].copy()
+with st.sidebar:
+    st.divider()
+    st.subheader("🎛️ Filtros")
+    locais = sorted([x for x in df["_LOCAL_"].dropna().unique().tolist() if str(x).strip() != ""])
+    tipos = sorted([x for x in df["_TIPO_"].dropna().unique().tolist() if str(x).strip() != ""])
+
+    local_sel = st.multiselect("Localidade", options=locais, default=[])
+    tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
+
+df_f = df.copy()
+if local_sel:
+    df_f = df_f[df_f["_LOCAL_"].isin([s.upper().strip() for s in local_sel])]
+if tipo_sel:
+    df_f = df_f[df_f["_TIPO_"].isin([s.upper().strip() for s in tipo_sel])]
+
+# ======================================================
+# CÁLCULOS
+# ======================================================
+df_semana = df_f[(df_f[COL_DATA] >= week_start) & (df_f[COL_DATA] <= week_end)].copy()
 df_semana["DOW_NUM"] = df_semana[COL_DATA].dt.weekday
 df_semana["DOW"] = df_semana["DOW_NUM"].map(DOW_PT)
 df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)]
 
 total_semanal = int(df_semana["_NOTAS_"].sum())
 
-df_ano = df[df[COL_DATA].dt.year == int(ano_acumulado)].copy()
+df_ano = df_f[df_f[COL_DATA].dt.year == int(ano_acumulado)].copy()
 total_ano = int(df_ano["_NOTAS_"].sum())
 
-# colaborador no gráfico: top 6 da semana
+# top colaboradores
 collabs = []
 if not df_semana.empty:
-    collabs = df_semana.groupby("_COLAB_")["_NOTAS_"].sum().sort_values(ascending=False).head(6).index.tolist()
+    collabs = df_semana.groupby("_COLAB_")["_NOTAS_"].sum().sort_values(ascending=False).head(8).index.tolist()
 elif not df_ano.empty:
     collabs = df_ano["_COLAB_"].dropna().unique().tolist()
 
@@ -457,7 +428,7 @@ with st.sidebar:
     )
 
 # ======================================================
-# DASHBOARD (Layout)
+# DASHBOARD
 # ======================================================
 col_left, col_right = st.columns([1.15, 0.85], gap="large")
 
@@ -509,7 +480,7 @@ with col_right:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================================================
-# DEMANDAS (3 tabelas)
+# TABELAS (3) — usando resumo por dia: Localidade/Tipo (se quiser)
 # ======================================================
 st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -518,12 +489,24 @@ st.markdown(f"<div class='section-title'>DEMANDAS DE APOIO (SEMANA)</div><div cl
 base = pd.DataFrame({"Data": pd.to_datetime([week_start + pd.Timedelta(days=i) for i in range(5)])})
 base["DOW"] = base["Data"].dt.weekday.map(DOW_PT)
 
-df_dem_semana = df[(df[COL_DATA] >= week_start) & (df[COL_DATA] <= week_end)].copy()
-df_dem_semana["Data"] = df_dem_semana[COL_DATA].dt.normalize()
-
 cols = st.columns(3, gap="medium")
 color_classes = ["head-blue", "head-green", "head-yellow"]
 rendered = {}
+
+# Aqui montamos uma "mensagem" por dia com TOP Localidades/Tipos do colaborador
+df_dem_semana = df_semana.copy()
+df_dem_semana["Data"] = df_dem_semana[COL_DATA].dt.normalize()
+
+def compor_demanda_texto(x: pd.DataFrame) -> str:
+    # sintetiza: Tipo(s) + Localidade(s)
+    tipos_top = x["_TIPO_"].value_counts().head(2).index.tolist()
+    locais_top = x["_LOCAL_"].value_counts().head(2).index.tolist()
+    parts = []
+    if tipos_top:
+        parts.append("TIPO: " + ", ".join(tipos_top))
+    if locais_top:
+        parts.append("LOCAL: " + ", ".join(locais_top))
+    return " | ".join(parts) if parts else "-"
 
 if len(people_tables) == 0:
     st.info("Selecione os colaboradores das tabelas.")
@@ -532,13 +515,12 @@ else:
         nome = safe_upper(people_tables[i])
         df_show = base.copy()
 
-        tmp = df_dem_semana[df_dem_semana["_COLAB_"] == nome][["Data","_DEMANDA_"]].copy()
+        tmp = df_dem_semana[df_dem_semana["_COLAB_"] == nome].copy()
         if not tmp.empty:
-            tmp = tmp.groupby("Data", as_index=False)["_DEMANDA_"].agg(
-                lambda x: " | ".join([t for t in x if str(t).strip() and str(t).strip() != "-"])
-            )
-            tmp.rename(columns={"_DEMANDA_": "Demanda"}, inplace=True)
-            df_show = df_show.merge(tmp, on="Data", how="left")
+            tmp2 = tmp.groupby("Data", as_index=False).apply(lambda g: compor_demanda_texto(g)).reset_index()
+            tmp2 = tmp2.rename(columns={0: "Demanda"})
+            tmp2 = tmp2[["Data", "Demanda"]]
+            df_show = df_show.merge(tmp2, on="Data", how="left")
 
         df_show["Demanda"] = df_show["Demanda"].fillna("-")
         rendered[nome] = df_show
@@ -564,20 +546,19 @@ resumo_df = pd.DataFrame([{
     "Ano_acumulado": int(ano_acumulado),
     "Total_semanal": total_semanal,
     "Total_ano": total_ano,
-    "URL_BASE": URL_BASE
+    "URL_BASE": URL_BASE,
+    "Filtros_Localidade": ", ".join(local_sel) if local_sel else "",
+    "Filtros_Tipo": ", ".join(tipo_sel) if tipo_sel else "",
 }])
 
 prod_semana_export = df_semana.copy()
 if not prod_semana_export.empty:
-    prod_semana_export = prod_semana_export[[COL_DATA, "DOW", "_COLAB_", "_NOTAS_"]].copy()
-    prod_semana_export.rename(columns={COL_DATA: "Data", "_COLAB_": "Colaborador", "_NOTAS_": "Notas"}, inplace=True)
+    prod_semana_export = prod_semana_export[[COL_DATA, "DOW", "_COLAB_", "_NOTAS_", "_TIPO_", "_LOCAL_"]].copy()
+    prod_semana_export.rename(
+        columns={COL_DATA: "Data", "_COLAB_": "Colaborador", "_NOTAS_": "Notas", "_TIPO_": "Tipo", "_LOCAL_": "Localidade"},
+        inplace=True
+    )
     prod_semana_export["Data"] = pd.to_datetime(prod_semana_export["Data"]).dt.strftime("%d/%m/%Y")
-
-dem_export = df_dem_semana.copy()
-if not dem_export.empty:
-    dem_export = dem_export[[COL_DATA, "_COLAB_", "_DEMANDA_"]].copy()
-    dem_export.rename(columns={COL_DATA: "Data", "_COLAB_": "Colaborador", "_DEMANDA_": "Demanda"}, inplace=True)
-    dem_export["Data"] = pd.to_datetime(dem_export["Data"]).dt.strftime("%d/%m/%Y")
 
 acum_export = df_ano.groupby("_COLAB_", as_index=False)["_NOTAS_"].sum().sort_values("_NOTAS_", ascending=False)
 acum_export.rename(columns={"_COLAB_": "Colaborador", "_NOTAS_": "Notas"}, inplace=True)
@@ -588,7 +569,7 @@ with c1:
     xlsx_bytes = make_excel_bytes(
         resumo=resumo_df,
         prod_semana=prod_semana_export if not prod_semana_export.empty else pd.DataFrame(),
-        demandas_semana=dem_export if not dem_export.empty else pd.DataFrame(),
+        demandas_semana=pd.DataFrame(),  # não existe uma coluna demanda real no seu layout; deixei vazio
         acumulado_ano=acum_export if not acum_export.empty else pd.DataFrame()
     )
     st.download_button(
@@ -617,5 +598,4 @@ with c2:
     )
 
 st.markdown("</div>", unsafe_allow_html=True)
-
-st.caption("Observação: se sua base não tiver a coluna de DEMANDA/APOIO/OBS, as tabelas vão ficar com '-'.")
+st.caption("Dica: rode com `streamlit run app.py` e confira se a DATA está na coluna A (0).")
