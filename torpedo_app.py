@@ -423,22 +423,28 @@ df["_QTD_"] = 1
 # SELETORES (Ano • Período • Calendário • Semana ISO)
 # ======================================================
 anos_disponiveis = sorted(df[COL_DATA].dropna().dt.year.unique().astype(int).tolist())
+
 c_sel1, c_sel2, c_sel3, c_sel4 = st.columns([1.0, 1.3, 2.2, 2.0], gap="medium")
 
 with c_sel1:
-    ano_sel = st.selectbox("Ano", options=anos_disponiveis if anos_disponiveis else ["—"],
-                           index=(len(anos_disponiveis)-1) if anos_disponiveis else 0, key="ano_sel")
-    if ano_sel == "—":
+    if anos_disponiveis:
+        ano_sel = st.selectbox("Ano", options=anos_disponiveis, index=len(anos_disponiveis) - 1, key="ano_sel")
+    else:
         ano_sel = None
+        st.selectbox("Ano", options=["—"], index=0, key="ano_sel_disabled", disabled=True)
 
 with c_sel2:
-    modo_periodo = st.segmented_control("Período", options=["Semanal", "Mensal"],
-                                        default=st.session_state.get("modo_periodo", "Semanal"),
-                                        key="modo_periodo")
+    modo_periodo = st.segmented_control(
+        "Período",
+        options=["Semanal", "Mensal"],
+        default=st.session_state.get("modo_periodo", "Semanal"),
+        key="modo_periodo",
+    )
 
-df_ano = df if ano_sel is None else df[df[COL_DATA].dt.year == int(ano_sel)].copy()
+df_ano = df if (ano_sel is None) else df[df[COL_DATA].dt.year == int(ano_sel)].copy()
 ano_txt = str(ano_sel) if ano_sel else "—"
 
+# min/max seguros
 if not df_ano.empty and df_ano[COL_DATA].notna().any():
     _min_d = df_ano[COL_DATA].min().date()
     _max_d = df_ano[COL_DATA].max().date()
@@ -446,22 +452,49 @@ else:
     _min_d = date.today()
     _max_d = date.today()
 
+# --- normaliza range salvo no session_state para evitar crash ---
+# pega o último range salvo (se existir)
+saved = st.session_state.get("range_calendario", None)
+
+if isinstance(saved, (tuple, list)) and len(saved) == 2:
+    s_ini, s_fim = saved
+else:
+    s_ini, s_fim = _min_d, _max_d
+
+# garante tipo date
+if not isinstance(s_ini, date): s_ini = _min_d
+if not isinstance(s_fim, date): s_fim = _max_d
+
+# clampa dentro de min/max
+if s_ini < _min_d: s_ini = _min_d
+if s_ini > _max_d: s_ini = _max_d
+if s_fim < _min_d: s_fim = _min_d
+if s_fim > _max_d: s_fim = _max_d
+
+# garante ordem
+if s_fim < s_ini:
+    s_ini, s_fim = s_fim, s_ini
+
 with c_sel3:
     data_ini, data_fim = st.date_input(
         "Filtro por calendário (início/fim)",
-        value=(st.session_state.get("data_ini", _min_d), st.session_state.get("data_fim", _max_d)),
-        min_value=_min_d, max_value=_max_d, key="range_calendario"
+        value=(s_ini, s_fim),
+        min_value=_min_d,
+        max_value=_max_d,
+        key="range_calendario",
     )
 
 with c_sel4:
     semana_sel = None
-    if modo_periodo == "Semanal" and not df_ano.empty and ano_sel is not None:
+    if modo_periodo == "Semanal" and (ano_sel is not None) and (not df_ano.empty):
         semanas_disp = sorted(df_ano[COL_DATA].dropna().dt.isocalendar().week.unique().astype(int).tolist())
         opcoes_sem = ["Todas"] + [f"S{w:02d}" for w in semanas_disp]
         semana_sel = st.selectbox("Semana (S01..S53)", opcoes_sem, index=0, key="semana_sel")
+    else:
+        st.selectbox("Semana (S01..S53)", ["—"], index=0, key="semana_sel_disabled", disabled=True)
 
 # aplica semana ISO seg(1) a sex(5)
-if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and ano_sel is not None:
+if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and (ano_sel is not None):
     w = int(str(semana_sel).replace("S", ""))
     try:
         data_ini = date.fromisocalendar(int(ano_sel), w, 1)
@@ -470,9 +503,9 @@ if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and ano_se
     except ValueError:
         st.warning("Semana inválida para este ano (ISO). Usando o filtro por calendário.")
 
-# filtro calendário (inclusive)
+# aplica filtro por calendário (inclusive)
 df_periodo = df_ano.copy()
-if not df_periodo.empty:
+if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
     _dini = pd.to_datetime(data_ini)
     _dfim = pd.to_datetime(data_fim) + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
     df_periodo = df_periodo[(df_periodo[COL_DATA] >= _dini) & (df_periodo[COL_DATA] <= _dfim)].copy()
