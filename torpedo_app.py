@@ -750,26 +750,55 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade / Tipo) + (opcional) Colaborador
+# FILTROS (Localidade em "abas" estilo imagem) / Tipo / Colaborador
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
 collabs_all = normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()
 collabs_all = sorted(collabs_all)
 
-f1, f2, f3 = st.columns([1.3, 1.3, 1.4], gap="medium")
-with f1:
-    local_sel = st.multiselect("Localidade", options=locais, default=[])
-with f2:
+# ---------- LOCALIDADE (novo seletor estilo "tabs") ----------
+# Mantém "TOTAL" (sem filtro) + locais disponíveis na base
+op_local_tabs = ["TOTAL"] + locais
+
+# Se tiver muitos locais, cai automaticamente pra selectbox (melhor UX)
+usar_tabs = len(op_local_tabs) <= 10
+
+c_loc, c_tipo, c_colab = st.columns([2.2, 1.6, 1.8], gap="medium")
+
+with c_loc:
+    st.caption("Localidade")
+    if usar_tabs:
+        local_tab = st.segmented_control(
+            label="",
+            options=op_local_tabs,
+            default=st.session_state.get("local_tab", "TOTAL"),
+            key="local_tab"
+        )
+    else:
+        local_tab = st.selectbox(
+            "Localidade",
+            options=op_local_tabs,
+            index=0,
+            key="local_tab"
+        )
+
+with c_tipo:
     tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
-with f3:
+
+with c_colab:
     colab_filtro = st.multiselect("Colaborador (opcional)", options=collabs_all, default=[])
 
+# ---------- aplica filtros ----------
 df_filtro = df_periodo.copy()
-if local_sel:
-    df_filtro = df_filtro[df_filtro["_LOCAL_"].isin([str(s).upper().strip() for s in local_sel])]
+
+# Localidade: "TOTAL" = não filtra, senão filtra 1 local
+if local_tab and local_tab != "TOTAL":
+    df_filtro = df_filtro[df_filtro["_LOCAL_"] == str(local_tab).upper().strip()]
+
 if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
+
 if colab_filtro:
     df_filtro = df_filtro[df_filtro["_COLAB_"].isin([str(s).upper().strip() for s in colab_filtro])]
 
