@@ -57,14 +57,6 @@ st.markdown("""
   text-align: center;
 }
 
-/* Mantém os cards da coluna da direita em tamanho controlado */
-.card-compact{
-  padding: 12px 14px;
-}
-.card-compact .stMultiSelect, .card-compact .stSelectbox { margin-bottom: 6px; }
-.card-controls{ min-height: 320px; }
-.card-resumo{ min-height: 320px; }
-
 /* KPI */
 .kpi-row{
   display:flex;
@@ -110,7 +102,7 @@ st.markdown("""
 .right-note{ text-align:right; font-weight:950; color:var(--ink); }
 .right-note small{ font-weight:800; opacity:.9; font-size:12px; }
 
-/* Botões (gerais) */
+/* Botões */
 div.stButton > button{
   border-radius: 10px;
   font-weight: 900;
@@ -124,7 +116,7 @@ div.stButton > button:hover{
   border-color: rgba(10,40,70,0.35);
 }
 
-/* Segmented (abas) */
+/* Segmented */
 div[data-baseweb="segmented-control"]{
   background: rgba(255,255,255,0.35);
   border: 2px solid rgba(10,40,70,0.22);
@@ -141,43 +133,6 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"]{
 }
 div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
   color: #ffffff !important;
-}
-
-/* ===== CHIPS (abas multi) — para colaboradores (gráfico / filtro) ===== */
-.chips-wrap{
-  background: rgba(255,255,255,0.35);
-  border: 2px solid rgba(10,40,70,0.22);
-  border-radius: 14px;
-  padding: 10px;
-  text-align:left;
-}
-.chips-title{
-  font-weight: 900;
-  color:#0b2b45;
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-.chips-row{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 8px;
-}
-.chip{
-  border: 2px solid rgba(10,40,70,0.22);
-  border-radius: 12px;
-  padding: 8px 10px;
-  font-weight: 950;
-  font-size: 12px;
-  cursor: pointer;
-  user-select:none;
-  background: rgba(255,255,255,0.35);
-  color:#0b2b45;
-  display:inline-block;
-}
-.chip-on{
-  background:#0b2b45;
-  color:#ffffff;
-  border-color:#0b2b45;
 }
 
 /* Tabelas estilo torpedo */
@@ -360,45 +315,6 @@ def achar_coluna_por_nome(df: pd.DataFrame, nomes_possiveis: list[str]):
                 return df.columns[i]
     return None
 
-def chips_multiselect(title: str, options: list[str], state_key: str, default: list[str] | None = None):
-    """Chips multi-seleção no estilo 'abas'. Bom para poucos itens."""
-    if default is None:
-        default = []
-    if state_key not in st.session_state:
-        st.session_state[state_key] = default[:]
-
-    selected = set(st.session_state[state_key])
-
-    chips_html = [f"<div class='chips-wrap'><div class='chips-title'>{title}</div><div class='chips-row'>"]
-    for opt in options:
-        on = opt in selected
-        cls = "chip chip-on" if on else "chip"
-        chips_html.append(
-            f"<a href='?toggle={state_key}::{opt}' style='text-decoration:none'>"
-            f"<span class='{cls}'>{opt}</span></a>"
-        )
-    chips_html.append("</div></div>")
-    st.markdown("".join(chips_html), unsafe_allow_html=True)
-
-    qp = st.query_params
-    t = qp.get("toggle")
-    if t:
-        st.query_params.clear()
-        try:
-            k, v = t.split("::", 1)
-            if k == state_key:
-                cur = set(st.session_state[state_key])
-                if v in cur:
-                    cur.remove(v)
-                else:
-                    cur.add(v)
-                st.session_state[state_key] = sorted(cur)
-                st.rerun()
-        except Exception:
-            pass
-
-    return st.session_state[state_key]
-
 
 # ======================================================
 # DONUT (acumulado por colaborador - ano)
@@ -449,16 +365,23 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
     return fig, total
 
 
+
 # ======================================================
-# LOGIN (centralizado | botões lado a lado | mais espaço do topo)
+# LOGIN (centralizado | botões lado a lado)
 # ======================================================
 def tela_login():
     st.markdown("""
     <style>
-      .login-top-space { height: 18px; }
+      /* ===== ESPAÇO DO TOPO ===== */
+      .login-top-space { height: 18px; }  /* ajuste se quiser subir/descer */
 
-      .login-frame { width: min(980px, 96vw); margin: 0 auto; }
+      /* ===== FRAME CENTRAL ===== */
+      .login-frame {
+        width: min(980px, 96vw);
+        margin: 0 auto;
+      }
 
+      /* ===== CARD ===== */
       .login-card{
         border-radius: 26px;
         overflow: hidden;
@@ -467,19 +390,33 @@ def tela_login():
         background: rgba(255,255,255,0.40);
         backdrop-filter: blur(8px);
       }
+
+      /* ===== CABEÇALHO ===== */
       .login-header{
         padding: 22px;
         background: #2f6f97;
         color: white;
       }
-      .login-header .h1{ font-size: 34px; font-weight: 950; }
-      .login-header .h2{ font-size: 18px; font-weight: 800; opacity: .95; }
+      .login-header .h1{
+        font-size: 34px;
+        font-weight: 950;
+      }
+      .login-header .h2{
+        font-size: 18px;
+        font-weight: 800;
+        opacity: .95;
+      }
 
-      .login-body{ padding: 18px 22px; background: rgba(255,255,255,0.22); }
+      /* ===== CORPO ===== */
+      .login-body{
+        padding: 18px 22px;
+        background: rgba(255,255,255,0.22);
+      }
 
-      /* Inputs alinhados */
+      /* ===== INPUTS ===== */
       div[data-testid="stTextInput"] label{ display:none !important; }
-      .login-body div[data-testid="stTextInput"] input{
+
+      div[data-testid="stTextInput"] input{
         width: 100% !important;
         height: 56px !important;
         border-radius: 10px !important;
@@ -491,23 +428,25 @@ def tela_login():
         color: #ffffff !important;
         box-sizing: border-box !important;
       }
-      .login-body div[data-testid="stTextInput"] input::placeholder{
+
+      div[data-testid="stTextInput"] input::placeholder{
         color: rgba(255,255,255,0.65);
       }
 
-      /* Botões iguais aos inputs */
+      /* ===== BOTÕES ===== */
       .login-btns div.stButton > button{
-        width: 100% !important;
-        height: 56px !important;
-        border-radius: 12px !important;
-        border: 2px solid rgba(10,40,70,0.22) !important;
-        background: rgba(255,255,255,0.35) !important;
-        color: #0b2b45 !important;
-        font-weight: 950 !important;
-        font-size: 18px !important;
+        width: 100%;
+        height: 56px;
+        border-radius: 12px;
+        border: 2px solid rgba(10,40,70,0.22);
+        background: rgba(255,255,255,0.35);
+        color: #0b2b45;
+        font-weight: 950;
+        font-size: 18px;
       }
+
       .login-btns div.stButton > button:hover{
-        background: rgba(255,255,255,0.55) !important;
+        background: rgba(255,255,255,0.55);
       }
 
       .login-note{
@@ -522,6 +461,7 @@ def tela_login():
 
     st.markdown("<div class='login-top-space'></div>", unsafe_allow_html=True)
 
+    # ===== CENTRALIZA =====
     _, center, _ = st.columns([1, 6, 1])
     with center:
         st.markdown("<div class='login-frame'>", unsafe_allow_html=True)
@@ -535,19 +475,18 @@ def tela_login():
           <div class="login-body">
         """, unsafe_allow_html=True)
 
-        # ✅ afasta mais o campo usuário do topo
-        st.markdown("<div style='margin-top:34px'></div>", unsafe_allow_html=True)
-
+        # ===== INPUTS =====
+        st.markdown("<div style='margin-top:30px'></div>", unsafe_allow_html=True)
+        # 🔧 ajuste o valor 22px se quiser mais/menos espaço
         usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
         senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
-        st.markdown("<div class='login-btns'>", unsafe_allow_html=True)
+        # ===== BOTÕES LADO A LADO =====
         b1, b2 = st.columns(2, gap="medium")
         with b1:
             entrar = st.button("Entrar")
         with b2:
             limpar = st.button("Limpar")
-        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("""
             <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
@@ -557,6 +496,7 @@ def tela_login():
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # ===== AÇÕES =====
     if limpar:
         st.session_state["login_usuario"] = ""
         st.session_state["login_senha"] = ""
@@ -574,6 +514,68 @@ def tela_login():
                 st.error("Usuário ou senha inválidos")
         except Exception:
             st.error("Secrets não configurado no Streamlit Cloud.")
+
+    # ==================================================
+    # AÇÕES
+    # ==================================================
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        try:
+            if (
+                (usuario == st.secrets["auth"]["usuario"]) and
+                (senha   == st.secrets["auth"]["senha"])
+            ):
+                st.session_state["logado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+        except Exception:
+            st.error("Secrets não configurado no Streamlit Cloud.")
+
+
+# ======================================================
+# CONTROLE DE SESSÃO (coloque logo após a função)
+# ======================================================
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
+
+if not st.session_state["logado"]:
+    tela_login()
+    st.stop()
+
+    # ==================================================
+    # AÇÕES DOS BOTÕES
+    # ==================================================
+    if limpar:
+        st.session_state["login_usuario"] = ""
+        st.session_state["login_senha"] = ""
+        st.rerun()
+
+    if entrar:
+        try:
+            if (
+                usuario == st.secrets["auth"]["usuario"]
+                and senha == st.secrets["auth"]["senha"]
+            ):
+                st.session_state["logado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+        except Exception:
+            st.error("Secrets não configurado no Streamlit Cloud.")
+
+    st.markdown("""
+          <div class="login-note">
+            ✅ Segurança via <b>st.secrets</b>
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ======================================================
@@ -654,7 +656,6 @@ df["_NOTA_ID_"] = df[COL_NOTAS].astype(str).str.strip()
 # ✅ Total correto = contagem de linhas
 df["_QTD_"] = 1
 
-
 # ======================================================
 # RESULTADO (Procedente/Improcedente) - tenta achar na base
 # ======================================================
@@ -706,6 +707,7 @@ else:
 if not isinstance(s_ini, date): s_ini = _min_d
 if not isinstance(s_fim, date): s_fim = _max_d
 
+# clamp
 s_ini = max(_min_d, min(_max_d, s_ini))
 s_fim = max(_min_d, min(_max_d, s_fim))
 if s_fim < s_ini:
@@ -729,6 +731,7 @@ with c_sel4:
     else:
         st.selectbox("Semana (S01..S53)", ["—"], index=0, key="semana_sel_disabled", disabled=True)
 
+# semana ISO seg–sex
 if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and (ano_sel is not None):
     w = int(str(semana_sel).replace("S", ""))
     try:
@@ -738,6 +741,7 @@ if modo_periodo == "Semanal" and semana_sel and semana_sel != "Todas" and (ano_s
     except ValueError:
         st.warning("Semana inválida para este ano (ISO). Usando o filtro por calendário.")
 
+# aplica filtro calendário (inclusive)
 df_periodo = df_ano.copy()
 if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
     _dini = pd.to_datetime(data_ini)
@@ -746,26 +750,25 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade / Tipo / Colaborador opcional) — TUDO NO ESTILO "ABAS"
+# FILTROS (Localidade em "abas" estilo imagem) / Tipo / Colaborador
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
 collabs_all = normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()
 collabs_all = sorted(collabs_all)
 
-# Localidade (tabs)
+# ---------- LOCALIDADE (novo seletor estilo "tabs") ----------
+# Mantém "TOTAL" (sem filtro) + locais disponíveis na base
 op_local_tabs = ["TOTAL"] + locais
-usar_tabs_local = len(op_local_tabs) <= 10
 
-# Tipo de nota (tabs, igual sua referência: TOTAL + tipos)
-op_tipo_tabs = ["TOTAL"] + tipos
-usar_tabs_tipo = len(op_tipo_tabs) <= 10
+# Se tiver muitos locais, cai automaticamente pra selectbox (melhor UX)
+usar_tabs = len(op_local_tabs) <= 10
 
-c_loc, c_tipo, c_colab = st.columns([2.2, 1.9, 2.3], gap="medium")
+c_loc, c_tipo, c_colab = st.columns([2.2, 1.6, 1.8], gap="medium")
 
 with c_loc:
     st.caption("Localidade")
-    if usar_tabs_local:
+    if usar_tabs:
         local_tab = st.segmented_control(
             label="",
             options=op_local_tabs,
@@ -773,40 +776,28 @@ with c_loc:
             key="local_tab"
         )
     else:
-        local_tab = st.selectbox("Localidade", options=op_local_tabs, index=0, key="local_tab")
+        local_tab = st.selectbox(
+            "Localidade",
+            options=op_local_tabs,
+            index=0,
+            key="local_tab"
+        )
 
 with c_tipo:
-    st.caption("Tipo de nota")
-    if usar_tabs_tipo:
-        tipo_tab = st.segmented_control(
-            label="",
-            options=op_tipo_tabs,
-            default=st.session_state.get("tipo_tab", "TOTAL"),
-            key="tipo_tab"
-        )
-    else:
-        tipo_tab = st.selectbox("Tipo de nota", options=op_tipo_tabs, index=0, key="tipo_tab")
+    tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
 
 with c_colab:
-    # Colaborador opcional (chips multi se poucos; fallback multiselect se muitos)
-    st.caption("Colaborador (opcional)")
-    if len(collabs_all) <= 12:
-        colab_filtro = chips_multiselect(
-            title="Selecione",
-            options=collabs_all,
-            state_key="colab_filtro",
-            default=st.session_state.get("colab_filtro", [])
-        )
-    else:
-        colab_filtro = st.multiselect("Selecione", options=collabs_all, default=st.session_state.get("colab_filtro", []), key="colab_filtro")
+    colab_filtro = st.multiselect("Colaborador (opcional)", options=collabs_all, default=[])
 
+# ---------- aplica filtros ----------
 df_filtro = df_periodo.copy()
 
+# Localidade: "TOTAL" = não filtra, senão filtra 1 local
 if local_tab and local_tab != "TOTAL":
     df_filtro = df_filtro[df_filtro["_LOCAL_"] == str(local_tab).upper().strip()]
 
-if tipo_tab and tipo_tab != "TOTAL":
-    df_filtro = df_filtro[df_filtro["_TIPO_"] == str(tipo_tab).upper().strip()]
+if tipo_sel:
+    df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
 
 if colab_filtro:
     df_filtro = df_filtro[df_filtro["_COLAB_"].isin([str(s).upper().strip() for s in colab_filtro])]
@@ -826,20 +817,25 @@ else:
 df_semana = df_filtro[(df_filtro[COL_DATA] >= week_start) & (df_filtro[COL_DATA] <= week_end)].copy()
 df_semana["DOW_NUM"] = df_semana[COL_DATA].dt.weekday
 df_semana["DOW"] = df_semana["DOW_NUM"].map(DOW_PT)
+
+# seg–sex apenas
 df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)].copy()
 
 total_periodo = int(df_semana["_QTD_"].sum())
 total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df_filtro["_QTD_"].sum())
 
+# ======================================================
+# OPÇÕES DO GRÁFICO (para usar no painel da direita)
+# ======================================================
 colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist()) if not df_semana.empty else []
 
 
 # ======================================================
-# LINHA PRINCIPAL: BARRAS + DONUT + (CONTROLES+RESUMO)
+# LINHA PRINCIPAL: BARRAS + DONUT + (CONTROLES+RESUMO) (MESMA LINHA)
 # ======================================================
 row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
-# ---- 1) BARRAS DIÁRIO
+# ---- 1) BARRAS DIÁRIO (por colaborador)
 with row_main[0]:
     st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — POR COLABORADOR (SEG–SEX)</div>', unsafe_allow_html=True)
 
@@ -847,20 +843,25 @@ with row_main[0]:
         st.info("Sem dados no período selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        default_colabs = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
-        colabs_sel = st.session_state.get("colabs_graf", default_colabs)
+        # ✅ agora pegamos as escolhas que ficam no painel da direita
+        colabs_sel = st.session_state.get(
+            "colabs_graf",
+            colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
+        )
         modo_barra = st.session_state.get("modo_barra", "Lado a lado")
 
         base = df_semana.copy()
         if colabs_sel:
             base = base[base["_COLAB_"].isin([str(x).upper().strip() for x in colabs_sel])].copy()
 
+        # agrega: colaborador x dia
         tmp = (
             base.groupby(["DOW_NUM", "DOW", "_COLAB_"], as_index=False)["_QTD_"]
             .sum()
             .rename(columns={"_QTD_": "Notas"})
         )
 
+        # garante SEG–SEX aparecendo mesmo se tiver 0 (por colaborador)
         dias_df = pd.DataFrame({"DOW_NUM":[0,1,2,3,4], "DOW":["SEG","TER","QUA","QUI","SEX"]})
         col_df = pd.DataFrame({"_COLAB_": [str(x).upper().strip() for x in (colabs_sel if colabs_sel else colabs_disp)]})
 
@@ -888,6 +889,7 @@ with row_main[0]:
         )
         fig_bar.update_traces(textposition="outside", cliponaxis=False)
 
+        # total semanal (somatório do gráfico)
         total_graf = int(tmp["Notas"].sum())
         fig_bar.add_annotation(
             xref="paper", yref="paper",
@@ -900,7 +902,7 @@ with row_main[0]:
         st.plotly_chart(fig_bar, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 2) DONUT
+# ---- 2) DONUT ACUMULADO POR COLABORADOR (ANO)
 with row_main[1]:
     st.markdown('<div class="card"><div class="card-title">ACUMULADO POR COLABORADOR</div>', unsafe_allow_html=True)
 
@@ -912,52 +914,38 @@ with row_main[1]:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 3) DIREITA: CONTROLES (abas) + RESUMO (tamanho ajustado)
+# ---- 3) LADO DIREITO: CONTROLES (EM CIMA) + RESUMO (ABAIXO)
 with row_main[2]:
-    # CONTROLES
-    st.markdown(
-        '<div class="card card-compact card-controls">'
-        '<div class="card-title">CONTROLES DO GRÁFICO</div>',
-        unsafe_allow_html=True
-    )
+    # ==================================================
+    # CONTROLES DO GRÁFICO (aqui fica o painel do lado direito)
+    # ==================================================
+    st.markdown('<div class="card"><div class="card-title">CONTROLES DO GRÁFICO</div>', unsafe_allow_html=True)
 
     if not df_semana.empty:
-        default_colabs = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
-
-        # COLABORADORES (chips)
-        if len(colabs_disp) <= 12:
-            chips_multiselect(
-                title="Colaboradores (para o gráfico)",
-                options=colabs_disp,
-                state_key="colabs_graf",
-                default=st.session_state.get("colabs_graf", default_colabs)
-            )
-        else:
-            st.multiselect(
-                "Colaboradores (para o gráfico)",
-                options=colabs_disp,
-                default=st.session_state.get("colabs_graf", default_colabs),
-                key="colabs_graf"
-            )
-
-        # VISUAL (abas)
-        st.segmented_control(
+        st.multiselect(
+            "Colaboradores (para o gráfico)",
+            options=colabs_disp,
+            default=colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp,
+            key="colabs_graf"
+        )
+        st.selectbox(
             "Visual",
-            options=["Lado a lado", "Empilhado"],
-            default=st.session_state.get("modo_barra", "Lado a lado"),
-            key="modo_barra",
+            ["Lado a lado", "Empilhado"],
+            index=0,
+            key="modo_barra"
         )
     else:
         st.info("Sem dados no período para configurar o gráfico.")
 
-    st.markdown("</div>", unsafe_allow_html=True)  # ✅ fecha o card CONTROLES
+    st.markdown("</div>", unsafe_allow_html=True)
 
-
-    # RESUMO
+    # ==================================================
+    # RESUMO (abaixo dos controles)
+    # ==================================================
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
         f"""
-        <div class="card card-compact card-resumo">
+        <div class="card">
           <div class="card-title">RESUMO</div>
           <div class="kpi-row">
             <div class="kpi-big">{fmt_int(total_periodo)}</div>
@@ -991,6 +979,7 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
         dow = ["SEG", "TER", "QUA", "QUI", "SEX"][i]
         dias.append((d, dow))
 
+    # init
     for d, _dow in dias:
         k = f"{key_base}|{d.isoformat()}"
         if k not in st.session_state["demanda_manual"]:
@@ -1030,6 +1019,7 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
 # ======================================================
 st.markdown('<div class="card"><div class="card-title">TABELAS (3) — DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
 
+# botão limpar semana
 if st.button("🧹 Limpar demandas desta semana"):
     semana_key = week_start.strftime("%Y-%m-%d")
     if "demanda_manual" in st.session_state:
@@ -1040,6 +1030,7 @@ if st.button("🧹 Limpar demandas desta semana"):
 
 pessoas = sorted(normalize_colab_series(df_filtro["_COLAB_"]).dropna().unique().tolist())
 
+# defaults das tabelas = top3 do período
 top3_tbl = []
 if not df_semana.empty:
     top3_tbl = (
