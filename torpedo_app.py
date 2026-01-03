@@ -476,6 +476,8 @@ def tela_login():
         """, unsafe_allow_html=True)
 
         # ===== INPUTS =====
+        st.markdown("<div style='margin-top:22px'></div>", unsafe_allow_html=True)
+        # 🔧 ajuste o valor 22px se quiser mais/menos espaço
         usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
         senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
