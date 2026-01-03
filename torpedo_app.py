@@ -914,12 +914,17 @@ with row_main[1]:
 
 # ---- 3) DIREITA: CONTROLES (abas) + RESUMO (tamanho ajustado)
 with row_main[2]:
-    st.markdown('<div class="card card-compact card-controls"><div class="card-title">CONTROLES DO GRÁFICO</div>', unsafe_allow_html=True)
+    # CONTROLES
+    st.markdown(
+        '<div class="card card-compact card-controls">'
+        '<div class="card-title">CONTROLES DO GRÁFICO</div>',
+        unsafe_allow_html=True
+    )
 
     if not df_semana.empty:
         default_colabs = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
 
-        # ✅ COLABORADORES PARA O GRÁFICO (mesma pegada do seletor)
+        # COLABORADORES (chips)
         if len(colabs_disp) <= 12:
             chips_multiselect(
                 title="Colaboradores (para o gráfico)",
@@ -935,7 +940,7 @@ with row_main[2]:
                 key="colabs_graf"
             )
 
-        # ✅ VISUAL (abas)
+        # VISUAL (abas)
         st.segmented_control(
             "Visual",
             options=["Lado a lado", "Empilhado"],
@@ -945,8 +950,10 @@ with row_main[2]:
     else:
         st.info("Sem dados no período para configurar o gráfico.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # ✅ fecha o card CONTROLES
 
+
+    # RESUMO
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
         f"""
