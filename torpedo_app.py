@@ -420,8 +420,8 @@ def tela_login():
         """, unsafe_allow_html=True)
 
         st.markdown("<div style='margin-top:30px'></div>", unsafe_allow_html=True)
-        usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
-        senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
+        st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
+        st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
         b1, b2 = st.columns(2, gap="medium")
         with b1:
@@ -615,53 +615,33 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
-
 op_local_tabs = ["TOTAL"] + locais
-usar_tabs = True  # mantém tabs e rolagem lateral (não quebra linha)
 
-# (mantém o gráfico configurável por colaborador)
-# (não existe mais "Colaborador (opcional)" aqui)
-# (controles do gráfico ficam aqui agora)
 c_loc, c_tipo, c_ctrl = st.columns([2.2, 1.6, 2.2], gap="medium")
 
 with c_loc:
     st.caption("Localidade")
-    if usar_tabs:
-        st.markdown("<div class='seg-local'>", unsafe_allow_html=True)
-        local_tab = st.segmented_control(
-            label="",
-            options=op_local_tabs,
-            default=st.session_state.get("local_tab", "TOTAL"),
-            key="local_tab"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        local_tab = st.selectbox("Localidade", options=op_local_tabs, index=0, key="local_tab")
+    st.markdown("<div class='seg-local'>", unsafe_allow_html=True)
+    local_tab = st.segmented_control(
+        label="",
+        options=op_local_tabs,
+        default=st.session_state.get("local_tab", "TOTAL"),
+        key="local_tab",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with c_tipo:
     tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
 
 with c_ctrl:
-    # Controles do gráfico (substitui "Colaborador (opcional)" e remove o card da direita)
-    st.multiselect(
-        "Colaboradores (para o gráfico)",
-        options=sorted(normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()),
-        default=st.session_state.get("colabs_graf_default", []),
-        key="colabs_graf"
-    )
-    st.selectbox(
-        "Visual",
-        ["Lado a lado", "Empilhado"],
-        index=0 if st.session_state.get("modo_barra", "Lado a lado") == "Lado a lado" else 1,
-        key="modo_barra"
-    )
+    # Placeholder: os controles reais serão renderizados depois do df_semana existir
+    st.caption("Colaboradores (para o gráfico) / Visual")
+    ctrl_box = st.container()
 
 # aplica filtros (somente Localidade + Tipo)
 df_filtro = df_periodo.copy()
-
 if local_tab and local_tab != "TOTAL":
     df_filtro = df_filtro[df_filtro["_LOCAL_"] == str(local_tab).upper().strip()]
-
 if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
 
@@ -687,16 +667,39 @@ total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].
 
 colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist()) if not df_semana.empty else []
 
+# ======================================================
+# CONTROLES DO GRÁFICO (renderiza aqui, SEM mexer no session_state depois)
+# ======================================================
+default_colabs = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
+# garante defaults só se a key ainda não existir (antes do widget)
+if "colabs_graf" not in st.session_state:
+    st.session_state["colabs_graf"] = default_colabs
+if "modo_barra" not in st.session_state:
+    st.session_state["modo_barra"] = "Lado a lado"
 
-# default do multiselect do gráfico (só define 1x por sessão, pra não ficar “pulando”)
-if "colabs_graf_default" not in st.session_state:
-    st.session_state["colabs_graf_default"] = (colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp)
-if "colabs_graf" not in st.session_state or not st.session_state["colabs_graf"]:
-    st.session_state["colabs_graf"] = st.session_state["colabs_graf_default"]
+# se existir seleção antiga, filtra para não quebrar (apenas antes do widget)
+st.session_state["colabs_graf"] = [c for c in st.session_state["colabs_graf"] if c in colabs_disp]
+
+with ctrl_box:
+    if df_semana.empty:
+        st.info("Sem dados no período.")
+    else:
+        st.multiselect(
+            "Colaboradores (para o gráfico)",
+            options=colabs_disp,
+            default=st.session_state["colabs_graf"],
+            key="colabs_graf",
+        )
+        st.selectbox(
+            "Visual",
+            ["Lado a lado", "Empilhado"],
+            index=0 if st.session_state.get("modo_barra", "Lado a lado") == "Lado a lado" else 1,
+            key="modo_barra",
+        )
 
 
 # ======================================================
-# LINHA PRINCIPAL: BARRAS + DONUT + RESUMO (SEM “CONTROLES DO GRÁFICO”)
+# LINHA PRINCIPAL: BARRAS + DONUT + RESUMO
 # ======================================================
 row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
@@ -708,7 +711,7 @@ with row_main[0]:
         st.info("Sem dados no período selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        colabs_sel = st.session_state.get("colabs_graf", colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp)
+        colabs_sel = st.session_state.get("colabs_graf", default_colabs)
         modo_barra = st.session_state.get("modo_barra", "Lado a lado")
 
         base = df_semana.copy()
@@ -772,7 +775,7 @@ with row_main[1]:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 3) RESUMO (subiu e ficou alinhado, sem card “CONTROLES DO GRÁFICO”)
+# ---- 3) RESUMO
 with row_main[2]:
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
