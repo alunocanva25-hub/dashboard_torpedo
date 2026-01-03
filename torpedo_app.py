@@ -140,21 +140,27 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
   overflow-x: auto !important;
   overflow-y: hidden !important;
   -webkit-overflow-scrolling: touch;
+  width: 100% !important;
 }
-.seg-nowrap div[data-baseweb="segmented-control"] > div{
-  display: flex !important;
+
+/* BaseWeb às vezes muda a estrutura, então travamos TUDO que pode wrapar */
+.seg-nowrap div[data-baseweb="segmented-control"] *{
   flex-wrap: nowrap !important;
-  gap: 6px !important;
 }
+
 .seg-nowrap div[data-baseweb="segmented-control"] div[role="radiogroup"]{
   display: flex !important;
   flex-wrap: nowrap !important;
   gap: 6px !important;
+  width: max-content !important;   /* faz o grupo virar “linha comprida” */
 }
+
+/* cada botão */
 .seg-nowrap div[data-baseweb="segmented-control"] div[role="radio"]{
   flex: 0 0 auto !important;
   white-space: nowrap !important;
-  min-width: 118px;
+  min-width: 88px !important;      /* ↓ menor pra caber mais sem quebrar */
+  padding: 6px 10px !important;    /* ↓ compacta */
 }
 
 /* Tabelas estilo torpedo */
