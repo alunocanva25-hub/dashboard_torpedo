@@ -116,7 +116,7 @@ div.stButton > button:hover{
   border-color: rgba(10,40,70,0.35);
 }
 
-/* Segmented (abas) */
+/* Segmented (padrão branco) */
 div[data-baseweb="segmented-control"]{
   background: rgba(255,255,255,0.35);
   border: 2px solid rgba(10,40,70,0.22);
@@ -135,20 +135,26 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
   color: #ffffff !important;
 }
 
-/* MultiSelect com “pílulas” escuras (pra ficar na pegada dos seletores) */
-div[data-testid="stMultiSelect"] > div{
-  background: rgba(255,255,255,0.18) !important;
-  border: 2px solid rgba(10,40,70,0.22) !important;
-  border-radius: 14px !important;
+/* ===== Segmented SEM QUEBRAR LINHA (1 linha + scroll horizontal) ===== */
+.seg-nowrap div[data-baseweb="segmented-control"]{
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch;
 }
-div[data-testid="stMultiSelect"] span[data-baseweb="tag"]{
-  background: #0b2b45 !important;
-  border-radius: 12px !important;
-  border: 0 !important;
+.seg-nowrap div[data-baseweb="segmented-control"] > div{
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
 }
-div[data-testid="stMultiSelect"] span[data-baseweb="tag"] *{
-  color: #fff !important;
-  font-weight: 900 !important;
+.seg-nowrap div[data-baseweb="segmented-control"] div[role="radiogroup"]{
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+}
+.seg-nowrap div[data-baseweb="segmented-control"] div[role="radio"]{
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  min-width: 118px;
 }
 
 /* Tabelas estilo torpedo */
@@ -179,46 +185,6 @@ div[data-testid="stMultiSelect"] span[data-baseweb="tag"] *{
 }
 .col-date{ width: 120px; }
 .col-dow{ width: 62px; text-align:center; }
-
-/* LOGIN moderno (base) */
-.login-wrap{
-  min-height: 100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding: 18px;
-}
-.login-shell{
-  width: min(460px, 96vw);
-  border-radius: 22px;
-  overflow: hidden;
-  border: 2px solid rgba(10,40,70,0.22);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.22);
-  background: rgba(255,255,255,0.55);
-  backdrop-filter: blur(8px);
-}
-.login-header{
-  padding: 18px 18px 14px 18px;
-  background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92));
-  color: white;
-}
-.login-header .h1{ font-size: 18px; font-weight: 950; letter-spacing:.3px; }
-.login-header .h2{ font-size: 12px; font-weight: 800; opacity:.9; margin-top: 4px; }
-.login-body{ padding: 16px 18px 18px 18px; }
-.login-chip{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding: 8px 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(10,40,70,0.18);
-  background: rgba(255,255,255,0.45);
-  color: #0b2b45;
-  font-weight: 900;
-  font-size: 12px;
-  margin-bottom: 12px;
-}
-.small-muted{ font-size: 12px; font-weight: 800; color: rgba(11,43,69,0.85); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -284,6 +250,7 @@ def carregar_base(url_original: str) -> pd.DataFrame:
     if _bytes_is_xlsx(raw):
         return pd.read_excel(BytesIO(raw), sheet_name=0, engine="openpyxl")
 
+    # fallback CSV
     for enc in ["utf-8-sig", "utf-8", "cp1252", "latin1"]:
         try:
             return pd.read_csv(BytesIO(raw), sep=None, engine="python", encoding=enc)
@@ -436,6 +403,7 @@ def tela_login():
         color: #ffffff !important;
         box-sizing: border-box !important;
       }
+
       div[data-testid="stTextInput"] input::placeholder{
         color: rgba(255,255,255,0.65);
       }
@@ -479,18 +447,19 @@ def tela_login():
           <div class="login-body">
         """, unsafe_allow_html=True)
 
-        # afasta um pouco mais o campo USUÁRIO do topo
-        st.markdown("<div style='margin-top:36px'></div>", unsafe_allow_html=True)
+        # mais espaço do topo antes do usuário (pedido)
+        st.markdown("<div style='margin-top:34px'></div>", unsafe_allow_html=True)
 
         usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
         senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
 
-        # botões lado a lado (alinhados)
+        st.markdown("<div class='login-btns'>", unsafe_allow_html=True)
         b1, b2 = st.columns(2, gap="medium")
         with b1:
             entrar = st.button("Entrar")
         with b2:
             limpar = st.button("Limpar")
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("""
             <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
@@ -520,7 +489,7 @@ def tela_login():
 
 
 # ======================================================
-# CONTROLE DE SESSÃO (único)
+# CONTROLE DE SESSÃO
 # ======================================================
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -563,7 +532,7 @@ with colB:
 
 
 # ======================================================
-# CARREGAMENTO (XLSX no Drive) — LINK FIXO NO SCRIPT
+# CARREGAMENTO (XLSX no Drive)
 # ======================================================
 URL_BASE = "https://drive.google.com/uc?id=1VadynN01W4mNRLfq8ABZAaQP8Sfim5tb"
 
@@ -577,7 +546,6 @@ except Exception as e:
 
 # ======================================================
 # MAPEAMENTO FIXO (B/C/D/E/H)
-# B=1 C=2 D=3 E=4 H=7
 # ======================================================
 COL_NOTAS = df.columns[1]   # B (ID / número da nota) -> NÃO somar!
 COL_TIPO  = df.columns[2]   # C
@@ -597,9 +565,14 @@ df["_NOTA_ID_"] = df[COL_NOTAS].astype(str).str.strip()
 # Total correto = contagem de linhas
 df["_QTD_"] = 1
 
-# Resultado (opcional)
+# ======================================================
+# RESULTADO (Procedente/Improcedente) - tenta achar na base
+# ======================================================
 COL_RESULTADO = achar_coluna_por_nome(df, ["RESULTADO", "SITUA", "STATUS", "PARECER"])
-df["_RES_"] = df[COL_RESULTADO].astype(str).str.upper().str.strip() if COL_RESULTADO else ""
+if COL_RESULTADO:
+    df["_RES_"] = df[COL_RESULTADO].astype(str).str.upper().str.strip()
+else:
+    df["_RES_"] = ""
 
 
 # ======================================================
@@ -643,6 +616,7 @@ else:
 if not isinstance(s_ini, date): s_ini = _min_d
 if not isinstance(s_fim, date): s_fim = _max_d
 
+# clamp
 s_ini = max(_min_d, min(_max_d, s_ini))
 s_fim = max(_min_d, min(_max_d, s_fim))
 if s_fim < s_ini:
@@ -685,45 +659,53 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade em "abas" / Tipo / Colaboradores (para o gráfico) / Visual)
+# FILTROS (Localidade + Tipo de nota iguais e 1 linha)
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
 collabs_all = normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()
 collabs_all = sorted(collabs_all)
 
-# Localidade (tabs)
 op_local_tabs = ["TOTAL"] + locais
-usar_tabs = len(op_local_tabs) <= 10
+op_tipo_tabs  = ["TOTAL"] + tipos
 
-c_loc, c_tipo, c_colab, c_vis = st.columns([2.2, 1.6, 2.2, 1.2], gap="medium")
+c_loc, c_tipo, c_colab, c_vis = st.columns([2.2, 2.0, 2.2, 1.2], gap="medium")
 
 with c_loc:
     st.caption("Localidade")
-    if usar_tabs:
-        local_tab = st.segmented_control(
-            label="",
-            options=op_local_tabs,
-            default=st.session_state.get("local_tab", "TOTAL"),
-            key="local_tab"
-        )
-    else:
-        local_tab = st.selectbox("Localidade", options=op_local_tabs, index=0, key="local_tab")
+    st.markdown("<div class='seg-nowrap'>", unsafe_allow_html=True)
+    local_tab = st.segmented_control(
+        label="",
+        options=op_local_tabs,
+        default=st.session_state.get("local_tab", "TOTAL"),
+        key="local_tab"
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with c_tipo:
-    tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
+    st.caption("Tipo de nota")
+    st.markdown("<div class='seg-nowrap'>", unsafe_allow_html=True)
+    tipo_tab = st.segmented_control(
+        label="",
+        options=op_tipo_tabs,
+        default=st.session_state.get("tipo_tab", "TOTAL"),
+        key="tipo_tab"
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with c_colab:
-    # ✅ substitui o antigo “Colaborador (opcional)” e fica na “pegada” visual (tags/pílulas)
+    default_colabs = st.session_state.get(
+        "colabs_graf",
+        collabs_all[:6] if len(collabs_all) > 6 else collabs_all
+    )
     st.multiselect(
         "Colaboradores (para o gráfico)",
         options=collabs_all,
-        default=st.session_state.get("colabs_graf", []),
+        default=default_colabs,
         key="colabs_graf"
     )
 
 with c_vis:
-    # ✅ Visual fora do card “CONTROLES DO GRÁFICO” (card removido)
     modo_barra = st.segmented_control(
         "Visual",
         options=["Lado a lado", "Empilhado"],
@@ -731,14 +713,14 @@ with c_vis:
         key="modo_barra"
     )
 
-# aplica filtros na BASE (sem “colaborador opcional”)
+# aplica filtros
 df_filtro = df_periodo.copy()
 
 if local_tab and local_tab != "TOTAL":
     df_filtro = df_filtro[df_filtro["_LOCAL_"] == str(local_tab).upper().strip()]
 
-if tipo_sel:
-    df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
+if tipo_tab and tipo_tab != "TOTAL":
+    df_filtro = df_filtro[df_filtro["_TIPO_"] == str(tipo_tab).upper().strip()]
 
 
 # ======================================================
@@ -762,12 +744,11 @@ df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)].copy()
 total_periodo = int(df_semana["_QTD_"].sum())
 total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df_filtro["_QTD_"].sum())
 
-# colabs disponíveis no período (para o gráfico)
 colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist()) if not df_semana.empty else []
 
 
 # ======================================================
-# LINHA PRINCIPAL: BARRAS + DONUT + RESUMO (card controle removido)
+# LINHA PRINCIPAL: BARRAS + DONUT + RESUMO
 # ======================================================
 row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
@@ -779,10 +760,11 @@ with row_main[0]:
         st.info("Sem dados no período selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        # ✅ pega a seleção “Colaboradores (para o gráfico)” lá de cima
-        colabs_sel = st.session_state.get("colabs_graf", [])
-        if not colabs_sel:
-            colabs_sel = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
+        colabs_sel = st.session_state.get(
+            "colabs_graf",
+            colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
+        )
+        modo_barra = st.session_state.get("modo_barra", "Lado a lado")
 
         base = df_semana.copy()
         if colabs_sel:
@@ -802,7 +784,7 @@ with row_main[0]:
         tmp["Notas"] = tmp["Notas"].astype(int)
         tmp = tmp.sort_values(["DOW_NUM", "_COLAB_"])
 
-        barmode = "group" if st.session_state.get("modo_barra", "Lado a lado") == "Lado a lado" else "stack"
+        barmode = "group" if modo_barra == "Lado a lado" else "stack"
 
         fig_bar = px.bar(
             tmp,
@@ -845,7 +827,7 @@ with row_main[1]:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 3) DIREITA: SOMENTE RESUMO (card “CONTROLES DO GRÁFICO” removido)
+# ---- 3) RESUMO
 with row_main[2]:
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
@@ -869,7 +851,7 @@ with row_main[2]:
 
 
 # ======================================================
-# DEMANDA MANUAL (não vem da base)
+# DEMANDA MANUAL
 # ======================================================
 def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp) -> pd.DataFrame:
     semana_key = week_start_ts.strftime("%Y-%m-%d")
@@ -919,7 +901,7 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
 
 
 # ======================================================
-# 3 TABELAS (seg–sex) — estilo torpedo + demanda manual
+# 3 TABELAS
 # ======================================================
 st.markdown('<div class="card"><div class="card-title">TABELAS (3) — DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
 
