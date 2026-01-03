@@ -19,7 +19,7 @@ st.set_page_config(page_title="TORPEDO SEMANAL – Produtividade", layout="wide"
 
 
 # ======================================================
-# CSS (visual + LOGIN moderno centralizado)
+# CSS
 # ======================================================
 st.markdown("""
 <style>
@@ -70,13 +70,6 @@ st.markdown("""
   color:var(--red);
   line-height: 1.0;
 }
-.kpi-mini{ text-align:center; }
-.kpi-mini .lbl{
-  font-weight:900; color:var(--ink); font-size:12px; text-transform:uppercase;
-}
-.kpi-mini .val{
-  font-weight:950; color:var(--red); font-size:26px; line-height: 1.0;
-}
 
 /* Topbar */
 .topbar{
@@ -116,7 +109,7 @@ div.stButton > button:hover{
   border-color: rgba(10,40,70,0.35);
 }
 
-/* Segmented (padrão geral) */
+/* Segmented (padrão) */
 div[data-baseweb="segmented-control"]{
   background: rgba(255,255,255,0.35);
   border: 2px solid rgba(10,40,70,0.22);
@@ -135,7 +128,7 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
   color: #ffffff !important;
 }
 
-/* ===== LOCALIDADE: NUNCA QUEBRA LINHA (1 LINHA + SCROLL) ===== */
+/* ===== LOCALIDADE: 1 LINHA + SCROLL (NÃO QUEBRA) ===== */
 .seg-local div[data-baseweb="segmented-control"]{
   width: 100% !important;
   overflow-x: auto !important;
@@ -154,7 +147,7 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
 .seg-local div[data-baseweb="segmented-control"] [role="radio"]{
   flex: 0 0 auto !important;
   white-space: nowrap !important;
-  min-width: 72px !important; /* se quiser mais compacto: 64px */
+  min-width: 72px !important;
   padding: 6px 10px !important;
 }
 .seg-local div[data-baseweb="segmented-control"]::-webkit-scrollbar{
@@ -194,45 +187,8 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
 .col-date{ width: 120px; }
 .col-dow{ width: 62px; text-align:center; }
 
-/* LOGIN moderno (base) */
-.login-wrap{
-  min-height: 100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding: 18px;
-}
-.login-shell{
-  width: min(460px, 96vw);
-  border-radius: 22px;
-  overflow: hidden;
-  border: 2px solid rgba(10,40,70,0.22);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.22);
-  background: rgba(255,255,255,0.55);
-  backdrop-filter: blur(8px);
-}
-.login-header{
-  padding: 18px 18px 14px 18px;
-  background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92));
-  color: white;
-}
-.login-header .h1{ font-size: 18px; font-weight: 950; letter-spacing:.3px; }
-.login-header .h2{ font-size: 12px; font-weight: 800; opacity:.9; margin-top: 4px; }
-.login-body{ padding: 16px 18px 18px 18px; }
-.login-chip{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding: 8px 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(10,40,70,0.18);
-  background: rgba(255,255,255,0.45);
-  color: #0b2b45;
-  font-weight: 900;
-  font-size: 12px;
-  margin-bottom: 12px;
-}
-.small-muted{ font-size: 12px; font-weight: 800; color: rgba(11,43,69,0.85); }
+/* LOGIN */
+.login-top-space { height: 18px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -298,7 +254,6 @@ def carregar_base(url_original: str) -> pd.DataFrame:
     if _bytes_is_xlsx(raw):
         return pd.read_excel(BytesIO(raw), sheet_name=0, engine="openpyxl")
 
-    # fallback CSV
     for enc in ["utf-8-sig", "utf-8", "cp1252", "latin1"]:
         try:
             return pd.read_csv(BytesIO(raw), sep=None, engine="python", encoding=enc)
@@ -347,7 +302,7 @@ def achar_coluna_por_nome(df: pd.DataFrame, nomes_possiveis: list[str]):
 
 
 # ======================================================
-# DONUT (acumulado por colaborador - ano)
+# DONUT
 # ======================================================
 def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
     if df_base.empty:
@@ -395,60 +350,28 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
     return fig, total
 
 
-
 # ======================================================
-# LOGIN (centralizado | botões lado a lado)
+# LOGIN
 # ======================================================
 def tela_login():
     st.markdown("""
     <style>
-      /* ===== ESPAÇO DO TOPO ===== */
-      .login-top-space { height: 18px; }
-
-      /* ===== FRAME CENTRAL ===== */
-      .login-frame {
-        width: min(980px, 96vw);
-        margin: 0 auto;
-      }
-
-      /* ===== CARD ===== */
+      .login-frame { width: min(980px, 96vw); margin: 0 auto; }
       .login-card{
-        border-radius: 26px;
-        overflow: hidden;
+        border-radius: 26px; overflow: hidden;
         border: 2px solid rgba(10,40,70,0.25);
         box-shadow: 0 16px 40px rgba(0,0,0,0.22);
         background: rgba(255,255,255,0.40);
         backdrop-filter: blur(8px);
       }
+      .login-header{ padding: 22px; background: #2f6f97; color: white; }
+      .login-header .h1{ font-size: 34px; font-weight: 950; }
+      .login-header .h2{ font-size: 18px; font-weight: 800; opacity: .95; }
+      .login-body{ padding: 18px 22px; background: rgba(255,255,255,0.22); }
 
-      /* ===== CABEÇALHO ===== */
-      .login-header{
-        padding: 22px;
-        background: #2f6f97;
-        color: white;
-      }
-      .login-header .h1{
-        font-size: 34px;
-        font-weight: 950;
-      }
-      .login-header .h2{
-        font-size: 18px;
-        font-weight: 800;
-        opacity: .95;
-      }
-
-      /* ===== CORPO ===== */
-      .login-body{
-        padding: 18px 22px;
-        background: rgba(255,255,255,0.22);
-      }
-
-      /* ===== INPUTS ===== */
       div[data-testid="stTextInput"] label{ display:none !important; }
-
       div[data-testid="stTextInput"] input{
-        width: 100% !important;
-        height: 56px !important;
+        width: 100% !important; height: 56px !important;
         border-radius: 10px !important;
         border: 2px solid rgba(10,40,70,0.25) !important;
         background: rgba(20,20,25,0.88) !important;
@@ -458,15 +381,10 @@ def tela_login():
         color: #ffffff !important;
         box-sizing: border-box !important;
       }
+      div[data-testid="stTextInput"] input::placeholder{ color: rgba(255,255,255,0.65); }
 
-      div[data-testid="stTextInput"] input::placeholder{
-        color: rgba(255,255,255,0.65);
-      }
-
-      /* ===== BOTÕES ===== */
       .login-btns div.stButton > button{
-        width: 100%;
-        height: 56px;
+        width: 100%; height: 56px;
         border-radius: 12px;
         border: 2px solid rgba(10,40,70,0.22);
         background: rgba(255,255,255,0.35);
@@ -474,10 +392,7 @@ def tela_login():
         font-weight: 950;
         font-size: 18px;
       }
-
-      .login-btns div.stButton > button:hover{
-        background: rgba(255,255,255,0.55);
-      }
+      .login-btns div.stButton > button:hover{ background: rgba(255,255,255,0.55); }
 
       .login-note{
         margin-top: 10px;
@@ -514,12 +429,8 @@ def tela_login():
         with b2:
             limpar = st.button("Limpar")
 
-        st.markdown("""
-            <div class="login-note">✅ Segurança via <b>st.secrets</b></div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown("""<div class="login-note">✅ Segurança via <b>st.secrets</b></div>""", unsafe_allow_html=True)
+        st.markdown("""</div></div>""", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     if limpar:
@@ -542,7 +453,7 @@ def tela_login():
 
 
 # ======================================================
-# CONTROLE DE SESSÃO
+# SESSÃO
 # ======================================================
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -573,7 +484,7 @@ st.markdown("""
 
 
 # ======================================================
-# BOTÃO ATUALIZAR BASE
+# ATUALIZAR BASE
 # ======================================================
 colA, colB = st.columns([1, 6])
 with colA:
@@ -585,7 +496,7 @@ with colB:
 
 
 # ======================================================
-# CARREGAMENTO (XLSX no Drive) — LINK FIXO NO SCRIPT
+# CARREGAMENTO
 # ======================================================
 URL_BASE = "https://drive.google.com/uc?id=1VadynN01W4mNRLfq8ABZAaQP8Sfim5tb"
 
@@ -599,7 +510,6 @@ except Exception as e:
 
 # ======================================================
 # MAPEAMENTO FIXO (B/C/D/E/H)
-# B=1 C=2 D=3 E=4 H=7
 # ======================================================
 COL_NOTAS = df.columns[1]   # B
 COL_TIPO  = df.columns[2]   # C
@@ -615,21 +525,16 @@ df["_COLAB_"] = normalize_colab_series(df[COL_COLAB])
 df["_TIPO_"]  = df[COL_TIPO].astype(str).str.upper().str.strip()
 df["_LOCAL_"] = df[COL_LOCAL].astype(str).str.upper().str.strip()
 df["_NOTA_ID_"] = df[COL_NOTAS].astype(str).str.strip()
-
-df["_QTD_"] = 1  # contagem correta
+df["_QTD_"] = 1
 
 COL_RESULTADO = achar_coluna_por_nome(df, ["RESULTADO", "SITUA", "STATUS", "PARECER"])
-if COL_RESULTADO:
-    df["_RES_"] = df[COL_RESULTADO].astype(str).str.upper().str.strip()
-else:
-    df["_RES_"] = ""
+df["_RES_"] = df[COL_RESULTADO].astype(str).str.upper().str.strip() if COL_RESULTADO else ""
 
 
 # ======================================================
-# SELETORES (Ano • Período • Calendário • Semana ISO)
+# SELETORES (Ano • Período • Calendário • Semana)
 # ======================================================
 anos_disponiveis = sorted(df[COL_DATA].dropna().dt.year.unique().astype(int).tolist())
-
 c_sel1, c_sel2, c_sel3, c_sel4 = st.columns([1.0, 1.3, 2.2, 2.0], gap="medium")
 
 with c_sel1:
@@ -706,17 +611,18 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade / Tipo / Colaborador)
+# FILTROS (Localidade / Tipo / Controles do gráfico NO LUGAR do colaborador opcional)
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
-collabs_all = normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()
-collabs_all = sorted(collabs_all)
 
 op_local_tabs = ["TOTAL"] + locais
-usar_tabs = len(op_local_tabs) <= 50  # deixa tabs mesmo com muitos (vai rolar lateral)
+usar_tabs = True  # mantém tabs e rolagem lateral (não quebra linha)
 
-c_loc, c_tipo, c_colab = st.columns([2.2, 1.6, 1.8], gap="medium")
+# (mantém o gráfico configurável por colaborador)
+# (não existe mais "Colaborador (opcional)" aqui)
+# (controles do gráfico ficam aqui agora)
+c_loc, c_tipo, c_ctrl = st.columns([2.2, 1.6, 2.2], gap="medium")
 
 with c_loc:
     st.caption("Localidade")
@@ -735,9 +641,22 @@ with c_loc:
 with c_tipo:
     tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
 
-with c_colab:
-    colab_filtro = st.multiselect("Colaborador (opcional)", options=collabs_all, default=[])
+with c_ctrl:
+    # Controles do gráfico (substitui "Colaborador (opcional)" e remove o card da direita)
+    st.multiselect(
+        "Colaboradores (para o gráfico)",
+        options=sorted(normalize_colab_series(df_periodo["_COLAB_"]).dropna().unique().tolist()),
+        default=st.session_state.get("colabs_graf_default", []),
+        key="colabs_graf"
+    )
+    st.selectbox(
+        "Visual",
+        ["Lado a lado", "Empilhado"],
+        index=0 if st.session_state.get("modo_barra", "Lado a lado") == "Lado a lado" else 1,
+        key="modo_barra"
+    )
 
+# aplica filtros (somente Localidade + Tipo)
 df_filtro = df_periodo.copy()
 
 if local_tab and local_tab != "TOTAL":
@@ -745,9 +664,6 @@ if local_tab and local_tab != "TOTAL":
 
 if tipo_sel:
     df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
-
-if colab_filtro:
-    df_filtro = df_filtro[df_filtro["_COLAB_"].isin([str(s).upper().strip() for s in colab_filtro])]
 
 
 # ======================================================
@@ -772,11 +688,19 @@ total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].
 colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist()) if not df_semana.empty else []
 
 
+# default do multiselect do gráfico (só define 1x por sessão, pra não ficar “pulando”)
+if "colabs_graf_default" not in st.session_state:
+    st.session_state["colabs_graf_default"] = (colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp)
+if "colabs_graf" not in st.session_state or not st.session_state["colabs_graf"]:
+    st.session_state["colabs_graf"] = st.session_state["colabs_graf_default"]
+
+
 # ======================================================
-# LINHA PRINCIPAL: BARRAS + DONUT + (CONTROLES+RESUMO)
+# LINHA PRINCIPAL: BARRAS + DONUT + RESUMO (SEM “CONTROLES DO GRÁFICO”)
 # ======================================================
 row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
+# ---- 1) BARRAS
 with row_main[0]:
     st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — POR COLABORADOR (SEG–SEX)</div>', unsafe_allow_html=True)
 
@@ -784,10 +708,7 @@ with row_main[0]:
         st.info("Sem dados no período selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        colabs_sel = st.session_state.get(
-            "colabs_graf",
-            colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
-        )
+        colabs_sel = st.session_state.get("colabs_graf", colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp)
         modo_barra = st.session_state.get("modo_barra", "Lado a lado")
 
         base = df_semana.copy()
@@ -839,6 +760,7 @@ with row_main[0]:
         st.plotly_chart(fig_bar, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+# ---- 2) DONUT
 with row_main[1]:
     st.markdown('<div class="card"><div class="card-title">ACUMULADO POR COLABORADOR</div>', unsafe_allow_html=True)
 
@@ -850,27 +772,8 @@ with row_main[1]:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ---- 3) RESUMO (subiu e ficou alinhado, sem card “CONTROLES DO GRÁFICO”)
 with row_main[2]:
-    st.markdown('<div class="card"><div class="card-title">CONTROLES DO GRÁFICO</div>', unsafe_allow_html=True)
-
-    if not df_semana.empty:
-        st.multiselect(
-            "Colaboradores (para o gráfico)",
-            options=colabs_disp,
-            default=colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp,
-            key="colabs_graf"
-        )
-        st.selectbox(
-            "Visual",
-            ["Lado a lado", "Empilhado"],
-            index=0,
-            key="modo_barra"
-        )
-    else:
-        st.info("Sem dados no período para configurar o gráfico.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
         f"""
@@ -943,7 +846,7 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
 
 
 # ======================================================
-# 3 TABELAS (seg–sex)
+# 3 TABELAS
 # ======================================================
 st.markdown('<div class="card"><div class="card-title">TABELAS (3) — DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
 
@@ -995,7 +898,7 @@ st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ======================================================
-# PDF (relatório do torpedo)
+# PDF
 # ======================================================
 def gerar_pdf_torpedo(ano_ref, periodo_txt, total_periodo, total_ano, tabelas_dict):
     buffer = BytesIO()
