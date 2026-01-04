@@ -337,7 +337,7 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
         height=320,
         margin=dict(l=10, r=10, t=55, b=10),
         legend_title_text="",
-        title=f"ACUMULADO DE NOTAS ATENDIDAS POR COLABORADOR - {ano_ref if ano_ref else ''}".strip()
+        title=f"NOTAS ATENDIDAS POR COLABORADOR - {ano_ref if ano_ref else ''}".strip()
     )
     fig.update_traces(textinfo="value")
 
