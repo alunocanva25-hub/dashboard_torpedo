@@ -851,7 +851,7 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
 # ======================================================
 # 3 TABELAS
 # ======================================================
-st.markdown('<div class="card"><div class="card-title">TABELAS (3) — DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
+st.markdown('<div class="card"><div class="card-title">DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
 
 if st.button("🧹 Limpar demandas desta semana"):
     semana_key = week_start.strftime("%Y-%m-%d")
