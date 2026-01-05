@@ -634,11 +634,9 @@ with c_tipo:
     tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
 
 with c_ctrl:
-    # Placeholder: os controles reais serão renderizados depois do df_semana existir
     st.caption("Colaboradores (para o gráfico) / Visual")
     ctrl_box = st.container()
 
-# aplica filtros (somente Localidade + Tipo)
 df_filtro = df_periodo.copy()
 if local_tab and local_tab != "TOTAL":
     df_filtro = df_filtro[df_filtro["_LOCAL_"] == str(local_tab).upper().strip()]
@@ -668,16 +666,15 @@ total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].
 colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist()) if not df_semana.empty else []
 
 # ======================================================
-# CONTROLES DO GRÁFICO (renderiza aqui, SEM mexer no session_state depois)
+# CONTROLES DO GRÁFICO
 # ======================================================
 default_colabs = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
-# garante defaults só se a key ainda não existir (antes do widget)
+
 if "colabs_graf" not in st.session_state:
     st.session_state["colabs_graf"] = default_colabs
 if "modo_barra" not in st.session_state:
     st.session_state["modo_barra"] = "Lado a lado"
 
-# se existir seleção antiga, filtra para não quebrar (apenas antes do widget)
 st.session_state["colabs_graf"] = [c for c in st.session_state["colabs_graf"] if c in colabs_disp]
 
 with ctrl_box:
@@ -703,7 +700,6 @@ with ctrl_box:
 # ======================================================
 row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 
-# ---- 1) BARRAS
 with row_main[0]:
     st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — POR COLABORADOR (SEG–SEX)</div>', unsafe_allow_html=True)
 
@@ -763,7 +759,6 @@ with row_main[0]:
         st.plotly_chart(fig_bar, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 2) DONUT
 with row_main[1]:
     st.markdown('<div class="card"><div class="card-title">ACUMULADO POR COLABORADOR</div>', unsafe_allow_html=True)
 
@@ -775,7 +770,6 @@ with row_main[1]:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- 3) RESUMO
 with row_main[2]:
     periodo_txt = f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
     st.markdown(
@@ -799,11 +793,13 @@ with row_main[2]:
 
 
 # ======================================================
-# DEMANDA MANUAL
+# DEMANDA MANUAL  ✅ (FIX: NÃO DUPLICA KEY COM 2 COLABS)
 # ======================================================
-def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp) -> pd.DataFrame:
+def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp, slot: int) -> pd.DataFrame:
     semana_key = week_start_ts.strftime("%Y-%m-%d")
-    key_base = f"demanda|{semana_key}|{nome_colab}"
+
+    # ✅ slot no key_base
+    key_base = f"demanda|{semana_key}|slot{slot}|{nome_colab}"
 
     if "demanda_manual" not in st.session_state:
         st.session_state["demanda_manual"] = {}
@@ -837,7 +833,14 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
             opts = ["-"] + OPCOES_DEMANDA
             atual = st.session_state["demanda_manual"].get(k, "-")
             idx = opts.index(atual) if atual in opts else 0
-            escolha = st.selectbox(label="", options=opts, index=idx, key=f"sb_{k}")
+
+            # ✅ key única por SLOT + dia (não depende do nome)
+            escolha = st.selectbox(
+                label="",
+                options=opts,
+                index=idx,
+                key=f"sb_{semana_key}_slot{slot}_{d.isoformat()}"
+            )
             st.session_state["demanda_manual"][k] = escolha
 
     rows = []
@@ -877,13 +880,28 @@ if len(top3_tbl) < 3:
     resto = [p for p in pessoas if p not in top3_tbl]
     top3_tbl = (top3_tbl + resto)[:3]
 
+# ✅ evita crash quando tiver 1 ou 2 pessoas: completa repetindo o primeiro
+if not pessoas:
+    st.warning("Sem colaboradores na base para montar as tabelas.")
+    st.stop()
+
+while len(top3_tbl) < 3:
+    top3_tbl.append(pessoas[0])
+
+# ✅ garante índices válidos
+def _safe_index(lst, val, fallback=0):
+    try:
+        return lst.index(val)
+    except ValueError:
+        return fallback
+
 s1, s2, s3 = st.columns(3, gap="large")
 with s1:
-    colab1 = st.selectbox("Tabela 1", options=pessoas, index=(pessoas.index(top3_tbl[0]) if top3_tbl and top3_tbl[0] in pessoas else 0), key="t1")
+    colab1 = st.selectbox("Tabela 1", options=pessoas, index=_safe_index(pessoas, top3_tbl[0]), key="t1")
 with s2:
-    colab2 = st.selectbox("Tabela 2", options=pessoas, index=(pessoas.index(top3_tbl[1]) if len(top3_tbl) > 1 and top3_tbl[1] in pessoas else 0), key="t2")
+    colab2 = st.selectbox("Tabela 2", options=pessoas, index=_safe_index(pessoas, top3_tbl[1]), key="t2")
 with s3:
-    colab3 = st.selectbox("Tabela 3", options=pessoas, index=(pessoas.index(top3_tbl[2]) if len(top3_tbl) > 2 and top3_tbl[2] in pessoas else 0), key="t3")
+    colab3 = st.selectbox("Tabela 3", options=pessoas, index=_safe_index(pessoas, top3_tbl[2]), key="t3")
 
 tcols = st.columns(3, gap="large")
 cores = ["head-blue", "head-green", "head-yellow"]
@@ -892,10 +910,17 @@ selecionados = [colab1, colab2, colab3]
 rendered_tables = {}
 for i in range(3):
     nome = selecionados[i]
+    slot = i + 1
     with tcols[i]:
-        df_tbl = tabela_para_colaborador_manual(nome, week_start)
-        rendered_tables[nome] = df_tbl
-        st.markdown(html_torpedo_table(f"DEMANDA DE APOIO – {nome}", cores[i], df_tbl), unsafe_allow_html=True)
+        df_tbl = tabela_para_colaborador_manual(nome, week_start, slot)
+
+        # ✅ não sobrescreve se repetir o mesmo nome
+        rendered_tables[f"TABELA {slot} - {nome}"] = df_tbl
+
+        st.markdown(
+            html_torpedo_table(f"DEMANDA DE APOIO – {nome}", cores[i], df_tbl),
+            unsafe_allow_html=True
+        )
 
 st.markdown("</div>", unsafe_allow_html=True)
 
