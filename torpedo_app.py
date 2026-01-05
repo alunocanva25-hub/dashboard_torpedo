@@ -186,6 +186,9 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
 }
 .col-date{ width: 120px; }
 .col-dow{ width: 62px; text-align:center; }
+
+/* LOGIN */
+.login-top-space { height: 18px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -334,7 +337,7 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
         height=320,
         margin=dict(l=10, r=10, t=55, b=10),
         legend_title_text="",
-        title=f"ACUMULADO DE NOTAS ATENDIDAS POR COLABORADOR - {ano_ref if ano_ref else ''}".strip()
+        title=f"NOTAS ATENDIDAS POR COLABORADOR - {ano_ref if ano_ref else ''}".strip()
     )
     fig.update_traces(textinfo="value")
 
@@ -353,29 +356,22 @@ def donut_colaborador_acumulado(df_base: pd.DataFrame, ano_ref: int | None):
 def tela_login():
     st.markdown("""
     <style>
-      .login-wrap{ min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 18px; }
-      .login-shell{
-        width: min(460px, 96vw);
-        border-radius: 22px;
-        overflow: hidden;
-        border: 2px solid rgba(10,40,70,0.22);
+      .login-frame { width: min(980px, 96vw); margin: 0 auto; }
+      .login-card{
+        border-radius: 26px; overflow: hidden;
+        border: 2px solid rgba(10,40,70,0.25);
         box-shadow: 0 16px 40px rgba(0,0,0,0.22);
-        background: rgba(255,255,255,0.55);
+        background: rgba(255,255,255,0.40);
         backdrop-filter: blur(8px);
       }
-      .login-header{
-        padding: 18px 18px 14px 18px;
-        background: linear-gradient(135deg, rgba(11,43,69,0.92), rgba(31,119,180,0.92));
-        color: white;
-      }
-      .login-header .h1{ font-size: 18px; font-weight: 950; letter-spacing:.3px; }
-      .login-header .h2{ font-size: 12px; font-weight: 800; opacity:.9; margin-top: 4px; }
-      .login-body{ padding: 16px 18px 18px 18px; }
+      .login-header{ padding: 22px; background: #2f6f97; color: white; }
+      .login-header .h1{ font-size: 34px; font-weight: 950; }
+      .login-header .h2{ font-size: 18px; font-weight: 800; opacity: .95; }
+      .login-body{ padding: 18px 22px; background: rgba(255,255,255,0.22); }
 
       div[data-testid="stTextInput"] label{ display:none !important; }
       div[data-testid="stTextInput"] input{
-        width: 100% !important;
-        height: 56px !important;
+        width: 100% !important; height: 56px !important;
         border-radius: 10px !important;
         border: 2px solid rgba(10,40,70,0.25) !important;
         background: rgba(20,20,25,0.88) !important;
@@ -388,8 +384,7 @@ def tela_login():
       div[data-testid="stTextInput"] input::placeholder{ color: rgba(255,255,255,0.65); }
 
       .login-btns div.stButton > button{
-        width: 100%;
-        height: 56px;
+        width: 100%; height: 56px;
         border-radius: 12px;
         border: 2px solid rgba(10,40,70,0.22);
         background: rgba(255,255,255,0.35);
@@ -409,26 +404,34 @@ def tela_login():
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div class='login-wrap'><div class='login-shell'>", unsafe_allow_html=True)
-    st.markdown("""
-      <div class="login-header">
-        <div class="h1">🔐 Acesso Restrito</div>
-        <div class="h2">Torpedo Semanal • Produtividade</div>
-      </div>
-      <div class="login-body">
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='login-top-space'></div>", unsafe_allow_html=True)
 
-    usuario = st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
-    senha   = st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
+    _, center, _ = st.columns([1, 6, 1])
+    with center:
+        st.markdown("<div class='login-frame'>", unsafe_allow_html=True)
 
-    b1, b2 = st.columns(2, gap="medium")
-    with b1:
-        entrar = st.button("Entrar")
-    with b2:
-        limpar = st.button("Limpar")
+        st.markdown("""
+        <div class="login-card">
+          <div class="login-header">
+            <div class="h1">🔐 Acesso Restrito</div>
+            <div class="h2">Torpedo Semanal • Produtividade</div>
+          </div>
+          <div class="login-body">
+        """, unsafe_allow_html=True)
 
-    st.markdown("""<div class="login-note">✅ Segurança via <b>st.secrets</b></div>""", unsafe_allow_html=True)
-    st.markdown("</div></div></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:30px'></div>", unsafe_allow_html=True)
+        st.text_input("", key="login_usuario", placeholder="Digite seu usuário")
+        st.text_input("", key="login_senha", type="password", placeholder="Digite sua senha")
+
+        b1, b2 = st.columns(2, gap="medium")
+        with b1:
+            entrar = st.button("Entrar")
+        with b2:
+            limpar = st.button("Limpar")
+
+        st.markdown("""<div class="login-note">✅ Segurança via <b>st.secrets</b></div>""", unsafe_allow_html=True)
+        st.markdown("""</div></div>""", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     if limpar:
         st.session_state["login_usuario"] = ""
@@ -438,8 +441,8 @@ def tela_login():
     if entrar:
         try:
             if (
-                (usuario == st.secrets["auth"]["usuario"]) and
-                (senha   == st.secrets["auth"]["senha"])
+                st.session_state.get("login_usuario") == st.secrets["auth"]["usuario"]
+                and st.session_state.get("login_senha") == st.secrets["auth"]["senha"]
             ):
                 st.session_state["logado"] = True
                 st.rerun()
@@ -608,7 +611,7 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade / Tipo / Controles no lugar do colab opcional)
+# FILTROS (Localidade / Tipo / Controles do gráfico NO LUGAR do colaborador opcional)
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
@@ -631,6 +634,7 @@ with c_tipo:
     tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
 
 with c_ctrl:
+    # Placeholder: os controles reais serão renderizados depois do df_semana existir
     st.caption("Colaboradores (para o gráfico) / Visual")
     ctrl_box = st.container()
 
@@ -661,31 +665,29 @@ df_semana = df_semana[df_semana["DOW_NUM"].between(0, 4)].copy()
 total_periodo = int(df_semana["_QTD_"].sum())
 total_ano = int(df_filtro[df_filtro[COL_DATA].dt.year == int(ano_sel)]["_QTD_"].sum()) if ano_sel else int(df_filtro["_QTD_"].sum())
 
-# colaboradores disponíveis (no período)
 colabs_disp = sorted(normalize_colab_series(df_semana["_COLAB_"]).dropna().unique().tolist()) if not df_semana.empty else []
 
 # ======================================================
-# CONTROLES DO GRÁFICO (blindado pra 1/2/3+ colaboradores)
+# CONTROLES DO GRÁFICO (renderiza aqui, SEM mexer no session_state depois)
 # ======================================================
 default_colabs = colabs_disp[:6] if len(colabs_disp) > 6 else colabs_disp
-
-# set inicial antes do widget existir
+# garante defaults só se a key ainda não existir (antes do widget)
 if "colabs_graf" not in st.session_state:
     st.session_state["colabs_graf"] = default_colabs
 if "modo_barra" not in st.session_state:
     st.session_state["modo_barra"] = "Lado a lado"
 
-# limpa seleção antiga (antes do widget)
+# se existir seleção antiga, filtra para não quebrar (apenas antes do widget)
 st.session_state["colabs_graf"] = [c for c in st.session_state["colabs_graf"] if c in colabs_disp]
 
 with ctrl_box:
-    if df_semana.empty or (len(colabs_disp) == 0):
-        st.info("Sem colaboradores no período (ou coluna de colaborador vazia).")
+    if df_semana.empty:
+        st.info("Sem dados no período.")
     else:
         st.multiselect(
             "Colaboradores (para o gráfico)",
             options=colabs_disp,
-            default=st.session_state["colabs_graf"] if st.session_state["colabs_graf"] else default_colabs,
+            default=st.session_state["colabs_graf"],
             key="colabs_graf",
         )
         st.selectbox(
@@ -705,77 +707,61 @@ row_main = st.columns([2.2, 1.3, 1.0], gap="medium")
 with row_main[0]:
     st.markdown('<div class="card"><div class="card-title">PRODUTIVIDADE DIÁRIA — POR COLABORADOR (SEG–SEX)</div>', unsafe_allow_html=True)
 
-    if df_semana.empty or (len(colabs_disp) == 0):
-        st.info("Sem dados/colaboradores no período selecionado.")
+    if df_semana.empty:
+        st.info("Sem dados no período selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
         colabs_sel = st.session_state.get("colabs_graf", default_colabs)
         modo_barra = st.session_state.get("modo_barra", "Lado a lado")
 
-        # se o usuário desmarcar tudo, não quebra
-        if not colabs_sel:
-            st.warning("Selecione ao menos 1 colaborador em 'Colaboradores (para o gráfico)'.")
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            base = df_semana.copy()
+        base = df_semana.copy()
+        if colabs_sel:
             base = base[base["_COLAB_"].isin([str(x).upper().strip() for x in colabs_sel])].copy()
 
-            if base.empty:
-                st.info("Sem linhas para os colaboradores selecionados.")
-                st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                tmp = (
-                    base.groupby(["DOW_NUM", "DOW", "_COLAB_"], as_index=False)["_QTD_"]
-                    .sum()
-                    .rename(columns={"_QTD_": "Notas"})
-                )
+        tmp = (
+            base.groupby(["DOW_NUM", "DOW", "_COLAB_"], as_index=False)["_QTD_"]
+            .sum()
+            .rename(columns={"_QTD_": "Notas"})
+        )
 
-                dias_df = pd.DataFrame({"DOW_NUM":[0,1,2,3,4], "DOW":["SEG","TER","QUA","QUI","SEX"]})
-                col_df = pd.DataFrame({"_COLAB_": [str(x).upper().strip() for x in colabs_sel]})
+        dias_df = pd.DataFrame({"DOW_NUM":[0,1,2,3,4], "DOW":["SEG","TER","QUA","QUI","SEX"]})
+        col_df = pd.DataFrame({"_COLAB_": [str(x).upper().strip() for x in (colabs_sel if colabs_sel else colabs_disp)]})
 
-                if col_df.empty:
-                    st.info("Sem colaboradores selecionados para montar o gráfico.")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                else:
-                    grid = dias_df.assign(_k=1).merge(col_df.assign(_k=1), on="_k").drop(columns="_k")
-                    tmp = grid.merge(tmp, on=["DOW_NUM","DOW","_COLAB_"], how="left").fillna({"Notas":0})
-                    tmp["Notas"] = tmp["Notas"].astype(int)
-                    tmp = tmp.sort_values(["DOW_NUM", "_COLAB_"])
+        grid = dias_df.assign(_k=1).merge(col_df.assign(_k=1), on="_k").drop(columns="_k")
+        tmp = grid.merge(tmp, on=["DOW_NUM","DOW","_COLAB_"], how="left").fillna({"Notas":0})
+        tmp["Notas"] = tmp["Notas"].astype(int)
+        tmp = tmp.sort_values(["DOW_NUM", "_COLAB_"])
 
-                    if tmp.empty:
-                        st.info("Gráfico sem dados após aplicar os filtros.")
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    else:
-                        barmode = "group" if modo_barra == "Lado a lado" else "stack"
+        barmode = "group" if modo_barra == "Lado a lado" else "stack"
 
-                        fig_bar = px.bar(
-                            tmp,
-                            x="DOW",
-                            y="Notas",
-                            color="_COLAB_",
-                            barmode=barmode,
-                            text="Notas",
-                            template="plotly_white",
-                            category_orders={"DOW": ["SEG","TER","QUA","QUI","SEX"]},
-                        )
-                        fig_bar.update_layout(
-                            height=320,
-                            margin=dict(l=10, r=10, t=10, b=10),
-                            legend_title_text="Colaborador"
-                        )
-                        fig_bar.update_traces(textposition="outside", cliponaxis=False)
+        fig_bar = px.bar(
+            tmp,
+            x="DOW",
+            y="Notas",
+            color="_COLAB_",
+            barmode=barmode,
+            text="Notas",
+            template="plotly_white",
+            category_orders={"DOW": ["SEG","TER","QUA","QUI","SEX"]},
+        )
+        fig_bar.update_layout(
+            height=320,
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend_title_text="Colaborador"
+        )
+        fig_bar.update_traces(textposition="outside", cliponaxis=False)
 
-                        total_graf = int(tmp["Notas"].sum())
-                        fig_bar.add_annotation(
-                            xref="paper", yref="paper",
-                            x=0.99, y=1.12,
-                            text=f"<b>TOTAL SEMANAL: {fmt_int(total_graf)}</b>",
-                            showarrow=False,
-                            align="right"
-                        )
+        total_graf = int(tmp["Notas"].sum())
+        fig_bar.add_annotation(
+            xref="paper", yref="paper",
+            x=0.99, y=1.12,
+            text=f"<b>TOTAL SEMANAL: {fmt_int(total_graf)}</b>",
+            showarrow=False,
+            align="right"
+        )
 
-                        st.plotly_chart(fig_bar, use_container_width=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
+        st.plotly_chart(fig_bar, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ---- 2) DONUT
 with row_main[1]:
@@ -865,7 +851,7 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp)
 # ======================================================
 # 3 TABELAS
 # ======================================================
-st.markdown('<div class="card"><div class="card-title">TABELAS (3) — DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
+st.markdown('<div class="card"><div class="card-title">DEMANDA DE APOIO (MANUAL)</div>', unsafe_allow_html=True)
 
 if st.button("🧹 Limpar demandas desta semana"):
     semana_key = week_start.strftime("%Y-%m-%d")
