@@ -128,7 +128,7 @@ div[data-baseweb="segmented-control"] div[aria-checked="true"] span{
   color: #ffffff !important;
 }
 
-/* ===== LOCALIDADE: 1 LINHA + SCROLL (NÃO QUEBRA) ===== */
+/* ===== SEG (1 LINHA + SCROLL) ===== */
 .seg-local div[data-baseweb="segmented-control"]{
   width: 100% !important;
   overflow-x: auto !important;
@@ -611,13 +611,16 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 
 # ======================================================
-# FILTROS (Localidade / Tipo / Controles do gráfico NO LUGAR do colaborador opcional)
+# FILTROS (Localidade à esquerda | Tipo + Controles à direita)
+#   ✅ Tipo de nota agora é segmented igual Localidade (1 linha + scroll)
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
-op_local_tabs = ["TOTAL"] + locais
 
-c_loc, c_tipo, c_ctrl = st.columns([2.2, 1.6, 2.2], gap="medium")
+op_local_tabs = ["TOTAL"] + locais
+op_tipo_tabs  = ["TOTAL"] + tipos
+
+c_loc, c_right = st.columns([2.4, 2.6], gap="medium")
 
 with c_loc:
     st.caption("Localidade")
@@ -630,18 +633,27 @@ with c_loc:
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-with c_tipo:
-    tipo_sel = st.multiselect("Tipo de nota", options=tipos, default=[])
+with c_right:
+    # ✅ Tipo de nota (agora no mesmo padrão do Localidade, e perto dos controles)
+    st.caption("Tipo de nota")
+    st.markdown("<div class='seg-local'>", unsafe_allow_html=True)
+    tipo_tab = st.segmented_control(
+        label="",
+        options=op_tipo_tabs,
+        default=st.session_state.get("tipo_tab", "TOTAL"),
+        key="tipo_tab",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-with c_ctrl:
     st.caption("Colaboradores (para o gráfico) / Visual")
     ctrl_box = st.container()
 
+# aplica filtros (Localidade + Tipo)
 df_filtro = df_periodo.copy()
 if local_tab and local_tab != "TOTAL":
     df_filtro = df_filtro[df_filtro["_LOCAL_"] == str(local_tab).upper().strip()]
-if tipo_sel:
-    df_filtro = df_filtro[df_filtro["_TIPO_"].isin([str(s).upper().strip() for s in tipo_sel])]
+if tipo_tab and tipo_tab != "TOTAL":
+    df_filtro = df_filtro[df_filtro["_TIPO_"] == str(tipo_tab).upper().strip()]
 
 
 # ======================================================
@@ -797,8 +809,6 @@ with row_main[2]:
 # ======================================================
 def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp, slot: int) -> pd.DataFrame:
     semana_key = week_start_ts.strftime("%Y-%m-%d")
-
-    # ✅ slot no key_base
     key_base = f"demanda|{semana_key}|slot{slot}|{nome_colab}"
 
     if "demanda_manual" not in st.session_state:
@@ -834,7 +844,6 @@ def tabela_para_colaborador_manual(nome_colab: str, week_start_ts: pd.Timestamp,
             atual = st.session_state["demanda_manual"].get(k, "-")
             idx = opts.index(atual) if atual in opts else 0
 
-            # ✅ key única por SLOT + dia (não depende do nome)
             escolha = st.selectbox(
                 label="",
                 options=opts,
@@ -880,7 +889,6 @@ if len(top3_tbl) < 3:
     resto = [p for p in pessoas if p not in top3_tbl]
     top3_tbl = (top3_tbl + resto)[:3]
 
-# ✅ evita crash quando tiver 1 ou 2 pessoas: completa repetindo o primeiro
 if not pessoas:
     st.warning("Sem colaboradores na base para montar as tabelas.")
     st.stop()
@@ -888,7 +896,6 @@ if not pessoas:
 while len(top3_tbl) < 3:
     top3_tbl.append(pessoas[0])
 
-# ✅ garante índices válidos
 def _safe_index(lst, val, fallback=0):
     try:
         return lst.index(val)
@@ -913,14 +920,8 @@ for i in range(3):
     slot = i + 1
     with tcols[i]:
         df_tbl = tabela_para_colaborador_manual(nome, week_start, slot)
-
-        # ✅ não sobrescreve se repetir o mesmo nome
         rendered_tables[f"TABELA {slot} - {nome}"] = df_tbl
-
-        st.markdown(
-            html_torpedo_table(f"DEMANDA DE APOIO – {nome}", cores[i], df_tbl),
-            unsafe_allow_html=True
-        )
+        st.markdown(html_torpedo_table(f"DEMANDA DE APOIO – {nome}", cores[i], df_tbl), unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
