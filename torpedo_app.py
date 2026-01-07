@@ -612,7 +612,7 @@ if not df_periodo.empty and df_periodo[COL_DATA].notna().any():
 
 # ======================================================
 # FILTROS (Localidade à esquerda | Tipo + Controles à direita)
-#   ✅ Tipo de nota agora é segmented igual Localidade (1 linha + scroll)
+#   ✅ ALTERAÇÃO PEDIDA: Tipo de nota = segmented igual Localidade e fica perto dos controles
 # ======================================================
 locais = sorted([x for x in df_periodo["_LOCAL_"].dropna().unique().tolist() if str(x).strip()])
 tipos  = sorted([x for x in df_periodo["_TIPO_"].dropna().unique().tolist() if str(x).strip()])
@@ -634,7 +634,6 @@ with c_loc:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with c_right:
-    # ✅ Tipo de nota (agora no mesmo padrão do Localidade, e perto dos controles)
     st.caption("Tipo de nota")
     st.markdown("<div class='seg-local'>", unsafe_allow_html=True)
     tipo_tab = st.segmented_control(
